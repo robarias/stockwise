@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "stock_analyzer": {
+      "command": "/home/robarias/Documents/FreeTime/mcp_stock/.venv/bin/python",
+      "args": [
+        "/home/robarias/Documents/FreeTime/mcp_stock/server.py"
+      ]
+    }
+  }
+}
