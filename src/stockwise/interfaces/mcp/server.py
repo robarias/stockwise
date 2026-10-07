@@ -10,7 +10,24 @@ from typing import Any
 import pandas as pd
 import requests
 import yfinance as yf
-from fastmcp import FastMCP
+
+try:
+    from fastmcp import FastMCP
+
+    mcp = FastMCP("StockAnalysisServer")
+except ImportError:
+    class _DummyMCP:
+        def tool(self, *args, **kwargs):
+            def decorator(fn):
+                return fn
+            return decorator
+
+        def run(self, *args, **kwargs):
+            raise RuntimeError(
+                "fastmcp no está instalado. Para ejecutar el servidor MCP instala el paquete opcional: pip install fastmcp"
+            )
+
+    mcp = _DummyMCP()
 
 from stockwise.analytics.forecasting import forecast_close
 from stockwise.analytics.indicators import calculate_technical_indicators
@@ -19,9 +36,6 @@ from stockwise.domain.catalogs.colombia import list_colombian_stocks
 from stockwise.domain.markets import COLOMBIA_CURRENCY, is_colombian_ticker, resolve_ticker
 from stockwise.interfaces.mcp.chart_files import save_figure
 from stockwise.viz.forecast import build_forecast_figure
-
-# Inicialización del servidor FastMCP
-mcp = FastMCP("StockAnalysisServer")
 
 
 def _format_large_number(num: float | None) -> str | None:
