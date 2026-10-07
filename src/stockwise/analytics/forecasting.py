@@ -15,14 +15,14 @@ rara vez supera al benchmark ingenuo. Las métricas de backtest se reportan para
 
 import itertools
 import warnings
-from typing import Dict, Any, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
+from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.exponential_smoothing.ets import ETSModel
 from statsmodels.tsa.stattools import adfuller
-from statsmodels.stats.diagnostic import acorr_ljungbox
 
 MODELS = ("auto", "arima", "ets")
 MIN_OBSERVATIONS = 60
@@ -57,7 +57,7 @@ def future_business_days(last_date: pd.Timestamp, horizon: int) -> pd.DatetimeIn
 # ---------------------------------------------------------------------------
 # Diagnósticos
 # ---------------------------------------------------------------------------
-def adf_test(series: pd.Series) -> Dict[str, Any]:
+def adf_test(series: pd.Series) -> dict[str, Any]:
     """Prueba Dickey-Fuller aumentada. H0: la serie tiene raíz unitaria (no estacionaria)."""
     stat, pvalue, usedlag, nobs, crit, _ = adfuller(series.values, autolag="AIC", result_object=False)
     return {
@@ -74,7 +74,7 @@ def adf_test(series: pd.Series) -> Dict[str, Any]:
 class _Fit:
     """Resultado de ajustar un modelo: pronostica media y bandas en log-precio."""
 
-    def __init__(self, name: str, description: str, result: Any, kind: str, aic: Optional[float]):
+    def __init__(self, name: str, description: str, result: Any, kind: str, aic: float | None):
         self.name, self.description, self.result, self.kind, self.aic = name, description, result, kind, aic
 
     def forecast(self, steps: int, alpha: float = 1 - CONFIDENCE) -> pd.DataFrame:
@@ -101,7 +101,7 @@ def _fit_arima(log_close: pd.Series) -> _Fit:
     d = 0 if adf_test(log_close)["stationary"] else 1
     trends = ["c", "n"] if d == 0 else ["t", "n"]
     y = log_close.values
-    best: Optional[Tuple[float, Tuple[int, int, int], str, Any]] = None
+    best: tuple[float, tuple[int, int, int], str, Any] | None = None
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         for p, q, trend in itertools.product(range(3), range(3), trends):
@@ -135,7 +135,7 @@ _FITTERS = {"arima": _fit_arima, "ets": _fit_ets}
 # ---------------------------------------------------------------------------
 # Backtest
 # ---------------------------------------------------------------------------
-def _backtest(log_close: pd.Series, model: str, holdout: int) -> Dict[str, Any]:
+def _backtest(log_close: pd.Series, model: str, holdout: int) -> dict[str, Any]:
     """Ajusta con datos[:-holdout], pronostica `holdout` pasos y mide el error vs lo ocurrido."""
     train, test = log_close.iloc[:-holdout], log_close.iloc[-holdout:]
     fit = _FITTERS[model](train)
@@ -168,14 +168,14 @@ def _backtest(log_close: pd.Series, model: str, holdout: int) -> Dict[str, Any]:
     }
 
 
-def _public(bt: Dict[str, Any]) -> Dict[str, Any]:
+def _public(bt: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in bt.items() if not k.startswith("_")}
 
 
 # ---------------------------------------------------------------------------
 # API principal
 # ---------------------------------------------------------------------------
-def forecast_close(df: pd.DataFrame, horizon: int = 30, model: str = "auto") -> Dict[str, Any]:
+def forecast_close(df: pd.DataFrame, horizon: int = 30, model: str = "auto") -> dict[str, Any]:
     """
     Pronostica el precio de cierre `horizon` ruedas hacia adelante.
 

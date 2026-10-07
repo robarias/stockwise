@@ -1,13 +1,15 @@
 """
-Módulo de cálculo de indicadores técnicos, métricas de riesgo e interpretación analítica.
+Indicadores técnicos (SMA, EMA, RSI, MACD, Bollinger) e interpretación de señales.
+Funciones puras sobre DataFrames OHLCV: sin red ni E/S.
 """
 
-from typing import Dict, Any, List
-import pandas as pd
+from typing import Any
+
 import numpy as np
+import pandas as pd
 
 
-def calculate_technical_indicators(df: pd.DataFrame) -> Dict[str, Any]:
+def calculate_technical_indicators(df: pd.DataFrame) -> dict[str, Any]:
     """
     Calcula indicadores técnicos a partir de un DataFrame con velas históricas (OHLCV).
     Requiere al menos la columna 'Close'.
@@ -32,6 +34,9 @@ def calculate_technical_indicators(df: pd.DataFrame) -> Dict[str, Any]:
     avg_loss = loss.ewm(alpha=1/14, min_periods=14, adjust=False).mean()
     rs = avg_gain / avg_loss.replace(0, np.nan)
     rsi_series = 100 - (100 / (1 + rs))
+    # En tendencia alcista pura sin pérdidas, RSI es 100; si no hay variación, 50
+    rsi_series = rsi_series.where(~((avg_loss == 0) & (avg_gain > 0)), 100.0)
+    rsi_series = rsi_series.where(~((avg_loss == 0) & (avg_gain == 0)), 50.0)
     current_rsi = float(rsi_series.iloc[-1]) if not pd.isna(rsi_series.iloc[-1]) else 50.0
 
     # 3. MACD (12, 26, 9)
@@ -60,7 +65,7 @@ def calculate_technical_indicators(df: pd.DataFrame) -> Dict[str, Any]:
     )
 
     # 5. Interpretación de señales
-    signals: List[str] = []
+    signals: list[str] = []
 
     # RSI
     if current_rsi >= 70:
@@ -125,56 +130,6 @@ def calculate_technical_indicators(df: pd.DataFrame) -> Dict[str, Any]:
     }
 
 
-def calculate_risk_metrics(df: pd.DataFrame) -> Dict[str, Any]:
-    """
-    Calcula métricas de volatilidad y riesgo basadas en rendimientos diarios.
-    """
-    if df.empty or len(df) < 5:
-        raise ValueError("Se requieren más datos para calcular métricas de riesgo.")
-
-    close = df["Close"]
-    daily_returns = close.pct_change().dropna()
-
-    if daily_returns.empty:
-        return {}
-
-    # Retorno acumulado en el periodo
-    initial_price = float(close.iloc[0])
-    final_price = float(close.iloc[-1])
-    cumulative_return = ((final_price - initial_price) / initial_price) * 100
-
-    # Volatilidad anualizada (asumiendo 252 días de trading al año)
-    daily_std = daily_returns.std()
-    annualized_volatility = float(daily_std * np.sqrt(252)) * 100
-
-    # Máximo Drawdown (MDD)
-    cummax = close.cummax()
-    drawdown = (close - cummax) / cummax
-    max_drawdown = float(drawdown.min()) * 100
-
-    # Retornos periódicos
-    def get_period_return(n_days: int) -> float | None:
-        if len(close) > n_days:
-            start_p = float(close.iloc[-(n_days + 1)])
-            return round(((final_price - start_p) / start_p) * 100, 2)
-        return None
-
-    return {
-        "period_start_price": round(initial_price, 2),
-        "period_end_price": round(final_price, 2),
-        "cumulative_return_pct": round(cumulative_return, 2),
-        "annualized_volatility_pct": round(annualized_volatility, 2),
-        "max_drawdown_pct": round(max_drawdown, 2),
-        "returns_breakdown": {
-            "1_week_pct": get_period_return(5),
-            "1_month_pct": get_period_return(21),
-            "3_months_pct": get_period_return(63),
-            "6_months_pct": get_period_return(126),
-            "1_year_pct": get_period_return(252)
-        }
-    }
-
-
 def compute_indicator_series(df: pd.DataFrame) -> pd.DataFrame:
     """
     Series completas de indicadores (para graficar), con las mismas fórmulas que
@@ -197,7 +152,10 @@ def compute_indicator_series(df: pd.DataFrame) -> pd.DataFrame:
     delta = close.diff()
     avg_gain = delta.clip(lower=0).ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
     avg_loss = (-delta.clip(upper=0)).ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
-    out["rsi_14"] = 100 - (100 / (1 + avg_gain / avg_loss.replace(0, np.nan)))
+    rsi_s = 100 - (100 / (1 + avg_gain / avg_loss.replace(0, np.nan)))
+    rsi_s = rsi_s.where(~((avg_loss == 0) & (avg_gain > 0)), 100.0)
+    rsi_s = rsi_s.where(~((avg_loss == 0) & (avg_gain == 0)), 50.0)
+    out["rsi_14"] = rsi_s
 
     ema_12 = close.ewm(span=12, adjust=False).mean()
     ema_26 = close.ewm(span=26, adjust=False).mean()

@@ -1,20 +1,19 @@
 """
-Soporte para acciones de la Bolsa de Valores de Colombia (BVC) vía Yahoo Finance.
+Catálogo de emisores de la Bolsa de Valores de Colombia (BVC) en Yahoo Finance.
 
-Yahoo Finance usa el sufijo ``.CL`` para los emisores de la BVC (ej: ``ECOPETROL.CL``)
-y cotiza en COP. Este módulo ofrece:
-  - Un catálogo de emisores validados contra Yahoo Finance.
-  - Resolución flexible de tickers ('ecopetrol', 'ECOPETROL.BVC', 'Bancolombia' -> 'CIBEST.CL').
+Yahoo Finance usa el sufijo ``.CL`` para los emisores de la BVC (ej: ``ECOPETROL.CL``) y cotiza en COP.
+Los símbolos del catálogo fueron validados contra Yahoo Finance.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 COLOMBIA_SUFFIX = ".CL"
+
+
 COLOMBIA_CURRENCY = "COP"
 
-# Catálogo: símbolo base (sin sufijo) -> metadatos.
-# Validado contra Yahoo Finance. 'type': COMUN, PREFERENTE, ETF.
-COLOMBIAN_STOCKS: Dict[str, Dict[str, str]] = {
+
+COLOMBIAN_STOCKS: dict[str, dict[str, str]] = {
     "ECOPETROL":   {"name": "Ecopetrol",                       "sector": "Energía",             "type": "COMUN"},
     "ISA":         {"name": "Interconexión Eléctrica (ISA)",   "sector": "Servicios públicos",  "type": "COMUN"},
     "GEB":         {"name": "Grupo Energía Bogotá",            "sector": "Servicios públicos",  "type": "COMUN"},
@@ -47,8 +46,8 @@ COLOMBIAN_STOCKS: Dict[str, Dict[str, str]] = {
     "HCOLSEL":     {"name": "Global X MSCI Colombia ETF",      "sector": "ETF",                 "type": "ETF"},
 }
 
-# Alias frecuentes -> símbolo base del catálogo.
-ALIASES: Dict[str, str] = {
+
+ALIASES: dict[str, str] = {
     "BANCOLOMBIA": "CIBEST",
     "PFBCOLOM": "PFCIBEST",
     "GRUPOCIBEST": "CIBEST",
@@ -65,43 +64,8 @@ ALIASES: Dict[str, str] = {
     "COLCAP": "ICOLCAP",
 }
 
-_LEGACY_SUFFIXES = (".BVC", ".CO", ".COL")
 
-
-def is_colombian_ticker(ticker: str) -> bool:
-    """True si el ticker (ya resuelto) pertenece a la BVC (termina en '.CL')."""
-    return ticker.upper().strip().endswith(COLOMBIA_SUFFIX)
-
-
-def resolve_ticker(ticker: str) -> str:
-    """
-    Normaliza un ticker. Si corresponde a un emisor colombiano conocido devuelve su
-    símbolo de Yahoo Finance ('<BASE>.CL'); de lo contrario devuelve el ticker en mayúsculas.
-
-    Ejemplos:
-        'ecopetrol' -> 'ECOPETROL.CL'   'ECOPETROL.BVC' -> 'ECOPETROL.CL'
-        'Bancolombia' -> 'CIBEST.CL'    'AAPL' -> 'AAPL'    'CIB' -> 'CIB' (ADR en NYSE)
-    """
-    t = ticker.upper().strip()
-    for legacy in _LEGACY_SUFFIXES:
-        if t.endswith(legacy):
-            t = t[: -len(legacy)]
-            return _to_cl(t)
-    if t.endswith(COLOMBIA_SUFFIX):
-        return t
-    if "." in t or t.startswith("^"):
-        return t  # Otro mercado o índice: no tocar.
-    if t in COLOMBIAN_STOCKS or t in ALIASES:
-        return _to_cl(t)
-    return t
-
-
-def _to_cl(base: str) -> str:
-    base = ALIASES.get(base, base)
-    return f"{base}{COLOMBIA_SUFFIX}"
-
-
-def list_colombian_stocks(sector: Optional[str] = None) -> List[Dict[str, Any]]:
+def list_colombian_stocks(sector: str | None = None) -> list[dict[str, Any]]:
     """Lista el catálogo, opcionalmente filtrado por sector (búsqueda parcial, sin mayúsculas)."""
     items = []
     for base, meta in COLOMBIAN_STOCKS.items():

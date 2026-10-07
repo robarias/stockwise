@@ -56,21 +56,30 @@ source .venv/bin/activate
 ### 2. Probar el servidor directamente
 ```bash
 python server.py
+# o también vía módulo:
+python -m stockwise.interfaces.mcp
+# o con el comando CLI registrado:
+stockwise-mcp
 ```
-*(o también `python mcp_test.py`)*
 
 ---
 
 ## ⚙️ Configuración en Clientes MCP
 
-### Configuración en Claude Desktop o Cursor (`mcp_config.json`)
+### Configuración en Claude Desktop, Cursor o Antigravity (`mcp_config.json`)
 
 ```json
 {
   "mcpServers": {
     "stock_analyzer": {
       "command": "/home/robarias/Documents/FreeTime/mcp_stock/.venv/bin/python",
-      "args": ["/home/robarias/Documents/FreeTime/mcp_stock/server.py"]
+      "args": [
+        "-m",
+        "stockwise.interfaces.mcp"
+      ],
+      "env": {
+        "PYTHONPATH": "/home/robarias/Documents/FreeTime/mcp_stock/src"
+      }
     }
   }
 }
