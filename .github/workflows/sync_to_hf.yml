@@ -1,0 +1,22 @@
+name: Sync to Hugging Face Hub
+
+on:
+  push:
+    branches: [main] # O 'master', según la rama que uses
+
+  # Permite ejecutar la sincronización manualmente desde la pestaña Actions
+  workflow_dispatch:
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push to HF
+        env:
+          HF_TOKEN: ${{ secrets.stockwise }}
+        run: git push --force https://USER:$HF_TOKEN@huggingface.co/spaces/robarias/stockwise main
