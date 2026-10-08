@@ -19,6 +19,7 @@ Servidor basado en el estándar **Model Context Protocol (MCP)** implementado co
 | `get_colombian_stock_analysis` | `ticker: str`, `period: str` | Análisis integral de una acción colombiana: precio en COP y USD (TRM), técnico, riesgo y fundamentales. |
 | `get_colombian_trm` | *(ninguno)* | Consulta oficial de la TRM (COP por USD) vigente desde Datos Abiertos Colombia. |
 | `convert_usd_to_cop` | `usd_amount: float` | Conversión directa de USD a COP utilizando la TRM oficial actual. |
+| `get_stock_events_and_news` | `ticker: str`, `limit: int = 8` | Eventos corporativos (balances, dividendos), noticias recientes con sentimiento clasificado y correlación de impacto en precio y volumen. |
 
 ### 🇨🇴 Acciones de Colombia (BVC)
 
@@ -40,8 +41,8 @@ streamlit run app.py        # abre http://localhost:8501
 ```
 
 Elige el mercado (Colombia / EE. UU. / otro) y la acción en la barra lateral; la app muestra pestañas de
-**Resumen, Técnico** (velas, SMA, Bollinger, RSI, MACD), **Riesgo** (drawdown, distribución de retornos),
-**Fundamental, Pronóstico** (ARIMA/ETS con backtest) y **Comparar** (rendimiento base 100 y correlación).
+**Resumen**, **Técnico** (velas con marcadores de balances/noticias, SMA, Bollinger, RSI, MACD), **Riesgo** (drawdown, distribución de retornos),
+**Fundamental**, **Pronóstico** (ARIMA/ETS con backtest), **Eventos y Noticias** (calendario de balances, dividendos, noticias clasificadas por sentimiento e impacto en volumen) y **Comparar** (rendimiento base 100 y correlación).
 Reutiliza la misma lógica que el servidor MCP; las consultas a Yahoo se cachean 15 minutos.
 
 ---

@@ -24,7 +24,7 @@ from stockwise.viz.comparison import build_comparison_figures
 from stockwise.viz.forecast import build_forecast_figure
 from stockwise.viz.technical import build_technical_figure
 
-st.set_page_config(page_title="Análisis de Acciones", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Stockwise", page_icon="📈", layout="wide")
 
 POPULAR_US = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "JPM", "KO", "SPY", "QQQ"]
 PERIODS = {"1 año": "1y", "2 años": "2y", "5 años": "5y"}
@@ -52,6 +52,11 @@ def load_fundamentals(symbol: str) -> dict[str, Any]:
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
 def load_trm() -> dict[str, Any]:
     return server.get_colombian_trm()
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_events_and_news(symbol: str) -> dict[str, Any]:
+    return server.get_stock_events_and_news(symbol)
 
 
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
@@ -133,7 +138,7 @@ currency = quote.get("currency") or ("COP" if is_colombian_ticker(symbol) else "
 if quote.get("name"):
     st.caption(f"{quote['name']} · moneda: {currency}")
 
-tabs = st.tabs(["📋 Resumen", "📊 Técnico", "⚖️ Riesgo", "🏦 Fundamental", "🔮 Pronóstico", "🆚 Comparar"])
+tabs = st.tabs(["📋 Resumen", "📊 Técnico", "⚖️ Riesgo", "🏦 Fundamental", "🔮 Pronóstico", "📰 Eventos y Noticias", "🆚 Comparar"])
 
 # ---------------------------------------------------------------------------
 # 1. Resumen
@@ -178,7 +183,33 @@ with tabs[1]:
         pb = tech["bollinger_bands_20_2"]["percent_b"]
         c3.metric("Bollinger %B", "—" if pb is None else pb)
         show_days = st.slider("Ruedas a mostrar", 60, min(len(hist), 750), min(len(hist), 252), step=10)
-        st.plotly_chart(build_technical_figure(symbol, hist, currency, show_days), width="stretch")
+
+        # Marcadores de eventos (reportes de utilidades y noticias de alto volumen)
+        ev_data = load_events_and_news(symbol)
+        event_markers = []
+        for rep in ev_data.get("recent_earnings_reports", []):
+            if rep.get("date"):
+                surp = f" ({rep['surprise_pct']:+.1f}%)" if rep.get("surprise_pct") is not None else ""
+                event_markers.append({
+                    "date": rep["date"],
+                    "type": "EARNINGS",
+                    "label": "E",
+                    "text": f"Balance: EPS {rep.get('reported_eps', '—')}{surp}",
+                })
+        for n in ev_data.get("news", []):
+            imp = n.get("market_impact")
+            if imp and imp.get("abnormal_volume") and imp.get("session_date"):
+                event_markers.append({
+                    "date": imp["session_date"],
+                    "type": "NEWS",
+                    "label": "N",
+                    "text": f"{n.get('publisher')}: {n.get('title')}",
+                })
+
+        st.plotly_chart(
+            build_technical_figure(symbol, hist, currency, show_days, events=event_markers),
+            width="stretch",
+        )
         with st.expander("Lectura de señales y medias móviles", expanded=True):
             for note in tech["analysis_notes"] or ["Sin señales extremas."]:
                 st.write(f"• {note}")
@@ -282,9 +313,97 @@ with tabs[4]:
         st.info("Ajusta los parámetros y pulsa **Calcular pronóstico**.")
 
 # ---------------------------------------------------------------------------
-# 6. Comparar
+# 6. Eventos y Noticias
 # ---------------------------------------------------------------------------
 with tabs[5]:
+    with st.spinner("Consultando eventos corporativos y noticias recientes…"):
+        events_info = load_events_and_news(symbol)
+
+    up = events_info.get("upcoming_events", {})
+    sent = events_info.get("sentiment_summary", {})
+    earnings_hist = events_info.get("recent_earnings_reports", [])
+    news_items = events_info.get("news", [])
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Próximo balance", up.get("earnings_date") or "—")
+    c2.metric("Fecha Ex-Dividendo", up.get("ex_dividend_date") or "—")
+    sent_label = sent.get("overall_label", "Neutral")
+    c3.metric(
+        "Sentimiento de titulares",
+        sent_label,
+        f"{sent.get('positive_count', 0)} pos / {sent.get('negative_count', 0)} neg",
+        delta_color="off",
+    )
+    c4.metric("Noticias analizadas", sent.get("total_news", 0))
+
+    if up.get("earnings_average") is not None or up.get("revenue_average") is not None:
+        ea_txt = f"EPS estimado: **{up.get('earnings_average')}**" if up.get("earnings_average") is not None else ""
+        ra_txt = (
+            f"Ingresos estimados: **{up.get('revenue_average'):,.0f}**"
+            if up.get("revenue_average") is not None
+            else ""
+        )
+        parts = " · ".join(p for p in (ea_txt, ra_txt) if p)
+        st.info(f"📊 **Expectativas del consenso para el próximo reporte**: {parts}")
+
+    # Balances trimestrales y reacción del mercado
+    if earnings_hist:
+        st.subheader("🏛️ Reportes trimestrales de utilidades y reacción del precio")
+        e_rows = []
+        for e in earnings_hist:
+            m = e.get("market_reaction") or {}
+            reac = f"{m['reaction_pct']:+.2f}%" if m.get("reaction_pct") is not None else "—"
+            vol_s = f"{m.get('volume_ratio', '—')}x" if m.get("volume_ratio") is not None else "—"
+            if m.get("abnormal_volume"):
+                vol_s += " 🔥"
+            e_rows.append({
+                "Fecha": e.get("date"),
+                "EPS Reportado": e.get("reported_eps", "—"),
+                "EPS Estimado": e.get("eps_estimate", "—"),
+                "Sorpresa %": f"{e['surprise_pct']:+.2f}%" if e.get("surprise_pct") is not None else "—",
+                "Reacción de precio": reac,
+                "Volumen relativo": vol_s,
+            })
+        st.dataframe(pd.DataFrame(e_rows), hide_index=True, width="stretch")
+
+    # Feed de noticias con sentimiento y análisis de impacto
+    st.subheader("📰 Titulares recientes y análisis de impacto")
+    if not news_items:
+        st.caption("No se encontraron noticias recientes indexadas para este activo.")
+    else:
+        for item in news_items:
+            sentiment = item.get("sentiment", {})
+            s_label = sentiment.get("label", "Neutral")
+            badge = "🟢 Positivo" if s_label == "Positivo" else ("🔴 Negativo" if s_label == "Negativo" else "⚪ Neutral")
+
+            impact = item.get("market_impact")
+            with st.container(border=True):
+                col_head, col_meta = st.columns([3, 1])
+                with col_head:
+                    title = item.get("title", "Sin título")
+                    link = item.get("link")
+                    if link:
+                        st.markdown(f"**[{title}]({link})**")
+                    else:
+                        st.markdown(f"**{title}**")
+                    pub = item.get("publisher", "Desconocido")
+                    date_str = item.get("published_at") or "—"
+                    st.caption(f"Fuente: **{pub}** · Publicado: {date_str}")
+
+                with col_meta:
+                    st.write(f"Sentimiento: **{badge}**")
+                    if impact:
+                        chg = impact.get("day_change_pct", 0.0)
+                        vol_r = impact.get("volume_ratio", 1.0)
+                        fire = "🔥 (Volumen anormal)" if impact.get("abnormal_volume") else ""
+                        st.caption(f"Sesión {impact.get('session_date', '')}: **{chg:+.2f}%** | Vol: **{vol_r}x** {fire}")
+                    else:
+                        st.caption("Sin sesión bursátil vinculada")
+
+# ---------------------------------------------------------------------------
+# 7. Comparar
+# ---------------------------------------------------------------------------
+with tabs[6]:
     colombian = [o["symbol"] for o in list_colombian_stocks()]
     universe = sorted(set(colombian + POPULAR_US + [symbol]))
     default = [symbol] + [t for t in (["ISA.CL", "ECOPETROL.CL"] if is_colombian_ticker(symbol) else ["MSFT", "SPY"])

@@ -35,6 +35,7 @@ from stockwise.analytics.risk import calculate_risk_metrics
 from stockwise.domain.catalogs.colombia import list_colombian_stocks
 from stockwise.domain.markets import COLOMBIA_CURRENCY, is_colombian_ticker, resolve_ticker
 from stockwise.interfaces.mcp.chart_files import save_figure
+from stockwise.services.events import fetch_stock_events_and_news
 from stockwise.viz.forecast import build_forecast_figure
 
 
@@ -515,6 +516,20 @@ def convert_usd_to_cop(usd_amount: float) -> dict[str, Any]:
         "cop_amount": round(cop_val, 2),
         "formatted_cop": f"${cop_val:,.2f} COP"
     }
+
+
+@mcp.tool()
+def get_stock_events_and_news(ticker: str, limit: int = 8) -> dict[str, Any]:
+    """
+    Obtiene noticias financieras recientes y eventos corporativos (calendario de balances,
+    dividendos y reportes trimestrales) analizando el sentimiento y su correlación de impacto
+    en el precio y volumen del activo.
+
+    Args:
+        ticker: Símbolo de la acción (ej: 'AAPL', 'NVDA', 'ECOPETROL', 'ISA.CL').
+        limit: Número máximo de noticias a recuperar (predeterminado 8).
+    """
+    return fetch_stock_events_and_news(ticker, limit=limit)
 
 
 def main() -> None:

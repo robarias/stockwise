@@ -18,6 +18,7 @@ Esta guía documenta cómo utilizar las herramientas de análisis técnico, fund
    - [7. get_colombian_trm](#7-get_colombian_trm)
    - [8. convert_usd_to_cop](#8-convert_usd_to_cop)
    - [9. get_international_stock_price](#9-get_international_stock_price)
+   - [10. get_stock_events_and_news](#10-get_stock_events_and_news)
 4. [Estrategias de Análisis Combinado](#4-estrategias-de-análisis-combinado)
 5. [Solución de Problemas Frecuentes](#5-solución-de-problemas-frecuentes)
 
@@ -250,6 +251,21 @@ Herramienta de alias mantenida por compatibilidad retroactiva con la primera ver
 * **Uso en Terminal:**
   ```bash
   fastmcp call server.py get_international_stock_price '{"ticker": "NVDA"}'
+  ```
+
+---
+
+### 10. `get_stock_events_and_news`
+
+Obtiene eventos corporativos (calendario de próximos balances y dividendos, historial de sorpresas de EPS) y noticias financieras recientes con clasificación automática de sentimiento (Positivo / Negativo / Neutral) y correlación de impacto en mercado (variación de precio de la sesión y detección de volumen anormal).
+
+* **Parámetros:**
+  * `ticker` *(string, obligatorio)*: Símbolo bursátil (ej: `"AAPL"`, `"NVDA"`, `"ECOPETROL.CL"`).
+  * `limit` *(int, opcional)*: Cantidad máxima de noticias a recuperar (predeterminado 8).
+
+* **Uso en Terminal:**
+  ```bash
+  fastmcp call server.py get_stock_events_and_news '{"ticker": "ECOPETROL.CL", "limit": 5}'
   ```
 
 ---

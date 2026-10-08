@@ -1,5 +1,7 @@
 """Gráfico técnico: velas + medias móviles + Bollinger, volumen, RSI y MACD (Plotly)."""
 
+from typing import Any
+
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -15,11 +17,18 @@ def _naive_index(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def build_technical_figure(symbol: str, df: pd.DataFrame, currency: str = "USD", show_days: int = 252) -> go.Figure:
+def build_technical_figure(
+    symbol: str,
+    df: pd.DataFrame,
+    currency: str = "USD",
+    show_days: int = 252,
+    events: list[dict[str, Any]] | None = None,
+) -> go.Figure:
     """
     Panel técnico: velas + SMA 20/50/200 + Bollinger, volumen, RSI (14) y MACD (12, 26, 9).
     Los indicadores se calculan sobre todo el historial y luego se recorta a `show_days`
     para que SMA 200 tenga valores en la ventana visible.
+    Opcionalmente superpone marcadores de eventos (Earnings, Dividendos, Noticias de impacto).
     """
     df = _naive_index(df)
     ind = compute_indicator_series(df)
@@ -44,6 +53,46 @@ def build_technical_figure(symbol: str, df: pd.DataFrame, currency: str = "USD",
     fig.add_trace(go.Scatter(x=view_ind.index, y=view_ind["bb_lower"], name="Bollinger inf.", showlegend=False,
                              line=dict(width=1, color="rgba(120,120,120,0.7)", dash="dot"),
                              fill="tonexty", fillcolor="rgba(120,120,120,0.08)"), row=1, col=1)
+
+    # Marcadores de eventos en el gráfico de precio
+    if events and isinstance(view_df.index, pd.DatetimeIndex):
+        norm_view_index = view_df.index.normalize()
+        for ev in events:
+            ev_date = ev.get("date") or ev.get("published_at")
+            if not ev_date:
+                continue
+            try:
+                ev_ts = pd.to_datetime(ev_date).normalize()
+            except (ValueError, TypeError):
+                continue
+
+            match_mask = norm_view_index == ev_ts
+            if match_mask.any():
+                match_idx = view_df.index[match_mask][0]
+                high_val = float(view_df.loc[match_idx, "High"])
+                ev_type = str(ev.get("type", "NEWS")).upper()
+                label = ev.get("label") or ("E" if "EARN" in ev_type else "D" if "DIV" in ev_type else "N")
+                color = "#9c27b0" if label == "E" else "#00897b" if label == "D" else "#1e88e5"
+                text = ev.get("text") or ev.get("title") or label
+
+                fig.add_annotation(
+                    x=match_idx,
+                    y=high_val,
+                    text=f"<b>{label}</b>",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=1,
+                    arrowwidth=1.2,
+                    arrowcolor=color,
+                    ax=0,
+                    ay=-22,
+                    bgcolor="white",
+                    bordercolor=color,
+                    borderwidth=1.5,
+                    borderpad=2,
+                    hovertext=f"{label}: {text}",
+                    row=1, col=1,
+                )
 
     # Volumen
     if "Volume" in view_df.columns:
