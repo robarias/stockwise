@@ -11,6 +11,7 @@ EXPECTED_TOOLS = {
     "get_stock_quote", "get_international_stock_price", "get_technical_analysis", "get_fundamental_analysis",
     "get_risk_and_performance", "compare_stocks", "get_historical_candles", "forecast_stock_prices",
     "list_colombian_stocks_catalog", "get_colombian_stock_analysis", "get_colombian_trm", "convert_usd_to_cop",
+    "get_stock_events_and_news",
 }
 
 

@@ -10,7 +10,24 @@ from typing import Any
 import pandas as pd
 import requests
 import yfinance as yf
-from fastmcp import FastMCP
+
+try:
+    from fastmcp import FastMCP
+
+    mcp = FastMCP("StockAnalysisServer")
+except ImportError:
+    class _DummyMCP:
+        def tool(self, *args, **kwargs):
+            def decorator(fn):
+                return fn
+            return decorator
+
+        def run(self, *args, **kwargs):
+            raise RuntimeError(
+                "fastmcp no está instalado. Para ejecutar el servidor MCP instala el paquete opcional: pip install fastmcp"
+            )
+
+    mcp = _DummyMCP()
 
 from stockwise.analytics.forecasting import forecast_close
 from stockwise.analytics.indicators import calculate_technical_indicators
@@ -18,10 +35,8 @@ from stockwise.analytics.risk import calculate_risk_metrics
 from stockwise.domain.catalogs.colombia import list_colombian_stocks
 from stockwise.domain.markets import COLOMBIA_CURRENCY, is_colombian_ticker, resolve_ticker
 from stockwise.interfaces.mcp.chart_files import save_figure
+from stockwise.services.events import fetch_stock_events_and_news
 from stockwise.viz.forecast import build_forecast_figure
-
-# Inicialización del servidor FastMCP
-mcp = FastMCP("StockAnalysisServer")
 
 
 def _format_large_number(num: float | None) -> str | None:
@@ -81,13 +96,19 @@ def get_stock_quote(ticker: str) -> dict[str, Any]:
     """
     ticker_clean = resolve_ticker(ticker)
     stock = yf.Ticker(ticker_clean)
-    info = stock.info
+    try:
+        info = stock.info or {}
+    except Exception:
+        info = {}
 
     if not info or ("currentPrice" not in info and "regularMarketPrice" not in info and "navPrice" not in info):
         # Intentar obtener el último registro de historia si info está incompleto
-        hist = stock.history(period="5d")
+        try:
+            hist = stock.history(period="5d")
+        except Exception:
+            hist = pd.DataFrame()
         if hist.empty:
-            return {"error": f"No se encontraron datos para el ticker '{ticker_clean}'."}
+            return {"error": f"No se pudieron obtener datos para '{ticker_clean}' (posible bloqueo temporal o rate-limit de Yahoo Finance)."}
         last_close = float(hist["Close"].iloc[-1])
         prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else last_close
         change = last_close - prev_close
@@ -149,7 +170,10 @@ def get_technical_analysis(ticker: str, period: str = "1y") -> dict[str, Any]:
     """
     ticker_clean = resolve_ticker(ticker)
     stock = yf.Ticker(ticker_clean)
-    hist = stock.history(period=period, interval="1d")
+    try:
+        hist = stock.history(period=period, interval="1d")
+    except Exception:
+        hist = pd.DataFrame()
 
     if hist.empty or len(hist) < 20:
         return {"error": f"Historial insuficiente para calcular indicadores de '{ticker_clean}'."}
@@ -172,10 +196,13 @@ def get_fundamental_analysis(ticker: str) -> dict[str, Any]:
     """
     ticker_clean = resolve_ticker(ticker)
     stock = yf.Ticker(ticker_clean)
-    info = stock.info
+    try:
+        info = stock.info or {}
+    except Exception:
+        info = {}
 
     if not info or ("shortName" not in info and "longName" not in info):
-        return {"error": f"No se encontró información fundamental para '{ticker_clean}'."}
+        return {"error": f"No se encontró información fundamental para '{ticker_clean}' (posible bloqueo temporal o rate-limit de Yahoo Finance)."}
 
     div_yield_pct = _dividend_yield_pct(info)
 
@@ -188,6 +215,7 @@ def get_fundamental_analysis(ticker: str) -> dict[str, Any]:
         "company_name": info.get("shortName") or info.get("longName"),
         "sector": info.get("sector"),
         "industry": info.get("industry"),
+        "business_summary": info.get("longBusinessSummary"),
         "valuation": {
             "market_cap": _format_large_number(info.get("marketCap")),
             "trailing_pe": round(info["trailingPE"], 2) if info.get("trailingPE") else None,
@@ -225,7 +253,10 @@ def get_risk_and_performance(ticker: str, period: str = "1y") -> dict[str, Any]:
     """
     ticker_clean = resolve_ticker(ticker)
     stock = yf.Ticker(ticker_clean)
-    hist = stock.history(period=period, interval="1d")
+    try:
+        hist = stock.history(period=period, interval="1d")
+    except Exception:
+        hist = pd.DataFrame()
 
     if hist.empty or len(hist) < 10:
         return {"error": f"Datos insuficientes para calcular métricas de riesgo para '{ticker_clean}'."}
@@ -255,8 +286,14 @@ def compare_stocks(tickers: list[str] | str, period: str = "1y") -> dict[str, An
         sym = resolve_ticker(raw_ticker)
         try:
             stock = yf.Ticker(sym)
-            hist = stock.history(period=period, interval="1d")
-            info = stock.info
+            try:
+                hist = stock.history(period=period, interval="1d")
+            except Exception:
+                hist = pd.DataFrame()
+            try:
+                info = stock.info or {}
+            except Exception:
+                info = {}
 
             if hist.empty or len(hist) < 10:
                 continue
@@ -300,7 +337,10 @@ def get_historical_candles(ticker: str, period: str = "1mo", interval: str = "1d
     """
     ticker_clean = resolve_ticker(ticker)
     stock = yf.Ticker(ticker_clean)
-    hist = stock.history(period=period, interval=interval)
+    try:
+        hist = stock.history(period=period, interval=interval)
+    except Exception:
+        hist = pd.DataFrame()
 
     if hist.empty:
         return {"error": f"No se obtuvieron velas históricas para '{ticker_clean}'."}
@@ -347,7 +387,10 @@ def forecast_stock_prices(ticker: str, horizon: int = 30, model: str = "auto", p
         include_daily_values: Si es True, incluye el pronóstico día a día en la respuesta.
     """
     sym = resolve_ticker(ticker)
-    hist = yf.Ticker(sym).history(period=period, interval="1d")
+    try:
+        hist = yf.Ticker(sym).history(period=period, interval="1d")
+    except Exception:
+        hist = pd.DataFrame()
     if hist.empty:
         return {"error": f"No se obtuvieron datos históricos para '{sym}'."}
 
@@ -408,7 +451,10 @@ def get_colombian_stock_analysis(ticker: str, period: str = "1y") -> dict[str, A
                          "Use list_colombian_stocks_catalog o el sufijo '.CL' (ej: 'ECOPETROL.CL')."}
 
     stock = yf.Ticker(sym)
-    hist = stock.history(period=period, interval="1d")
+    try:
+        hist = stock.history(period=period, interval="1d")
+    except Exception:
+        hist = pd.DataFrame()
     if hist.empty or len(hist) < 20:
         return {"error": f"Historial insuficiente para '{sym}'. Verifique el símbolo con list_colombian_stocks_catalog."}
 
@@ -501,6 +547,20 @@ def convert_usd_to_cop(usd_amount: float) -> dict[str, Any]:
         "cop_amount": round(cop_val, 2),
         "formatted_cop": f"${cop_val:,.2f} COP"
     }
+
+
+@mcp.tool()
+def get_stock_events_and_news(ticker: str, limit: int = 8) -> dict[str, Any]:
+    """
+    Obtiene noticias financieras recientes y eventos corporativos (calendario de balances,
+    dividendos y reportes trimestrales) analizando el sentimiento y su correlación de impacto
+    en el precio y volumen del activo.
+
+    Args:
+        ticker: Símbolo de la acción (ej: 'AAPL', 'NVDA', 'ECOPETROL', 'ISA.CL').
+        limit: Número máximo de noticias a recuperar (predeterminado 8).
+    """
+    return fetch_stock_events_and_news(ticker, limit=limit)
 
 
 def main() -> None:
