@@ -91,3 +91,19 @@ def test_section_guides():
     assert "forecast" in SECTION_GUIDES
     assert "events_and_news" in SECTION_GUIDES
     assert "comparison" in SECTION_GUIDES
+
+
+def test_get_company_description():
+    from stockwise.domain.education import get_company_description
+
+    eco = get_company_description("ECOPETROL.CL")
+    assert eco is not None and "petrolera" in eco.lower()
+
+    aapl = get_company_description("AAPL")
+    assert aapl is not None and "apple" in aapl.lower()
+
+    fallback = get_company_description("RANDOM_TICKER", "A custom corporate summary.")
+    assert fallback == "A custom corporate summary."
+
+    none_desc = get_company_description("UNKNOWN_NO_SUMMARY")
+    assert none_desc is None

@@ -21,6 +21,7 @@ from stockwise.domain.catalogs.colombia import COLOMBIAN_STOCKS, list_colombian_
 from stockwise.domain.education import (
     METRIC_LABELS,
     SECTION_GUIDES,
+    get_company_description,
     get_help,
     get_metric_reading,
     interpret_drawdown,
@@ -35,6 +36,24 @@ from stockwise.viz.technical import build_technical_figure
 
 st.set_page_config(page_title="StockWise", page_icon="📈", layout="wide")
 
+st.markdown(
+    """
+    <style>
+    /* Ajusta el tamaño y comportamiento de métricas para evitar cortes por elipsis (...) */
+    div[data-testid="stMetricValue"] {
+        font-size: 1.45rem !important;
+        white-space: normal !important;
+        line-height: 1.25 !important;
+    }
+    div[data-testid="stMetricValue"] > div {
+        white-space: normal !important;
+        overflow: visible !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 POPULAR_US = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "JPM", "KO", "SPY", "QQQ"]
 PERIODS = {"1 año": "1y", "2 años": "2y", "5 años": "5y"}
 CACHE_TTL = 15 * 60  # segundos
@@ -44,8 +63,8 @@ CACHE_TTL = 15 * 60  # segundos
 # Carga de datos con caché (evita repetir llamadas a Yahoo al cambiar de pestaña)
 # ---------------------------------------------------------------------------
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
-def load_history(symbol: str, period: str) -> pd.DataFrame:
-    return yf.Ticker(symbol).history(period=period, interval="1d")
+def load_history(symbol: str, period: str, interval: str = "1d") -> pd.DataFrame:
+    return yf.Ticker(symbol).history(period=period, interval=interval)
 
 
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
@@ -88,8 +107,30 @@ def load_closes(symbols: tuple, period: str) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # Utilidades de presentación
 # ---------------------------------------------------------------------------
-def fmt_money(value, currency: str) -> str:
-    return "—" if value is None else f"{value:,.2f} {currency}"
+def fmt_price(value: Any, currency: str) -> str:
+    """Formatea valor numérico de precio de forma compacta (sin decimales innecesarios en COP)."""
+    if value is None:
+        return "—"
+    try:
+        val = float(value)
+        if currency == "COP" and val.is_integer():
+            return f"{val:,.0f}"
+        return f"{val:,.2f}"
+    except (ValueError, TypeError):
+        return str(value)
+
+
+def fmt_money(value: Any, currency: str) -> str:
+    """Formatea valor monetario con su divisa (sin decimales innecesarios en COP)."""
+    if value is None:
+        return "—"
+    try:
+        val = float(value)
+        if currency == "COP" and val.is_integer():
+            return f"{val:,.0f} {currency}"
+        return f"{val:,.2f} {currency}"
+    except (ValueError, TypeError):
+        return f"{value} {currency}"
 
 
 def show_table(data: dict[str, Any], show_learning: bool = False) -> None:
@@ -142,8 +183,25 @@ elif market.startswith("🇺🇸"):
 else:
     symbol = resolve_ticker(st.sidebar.text_input("Ticker", value="AAPL", help="Ej: 7203.T, SAP.DE, ^GSPC"))
 
-period_label = st.sidebar.selectbox("Historial", list(PERIODS), index=1)
-period = PERIODS[period_label]
+col_hist, col_freq = st.sidebar.columns(2)
+with col_freq:
+    freq_label = st.selectbox(
+        "Frecuencia",
+        ["📅 Diario (1D)", "⏱️ Horario (1H)"],
+        help="Elige 'Horario' para analizar barras de 1 hora y hacer zoom a nivel intradiario (máx. 2 años en Yahoo Finance).",
+    )
+interval = "1h" if "Horario" in freq_label else "1d"
+
+if interval == "1h":
+    periods_map = {"1 mes": "1mo", "3 meses": "3mo", "6 meses": "6mo", "1 año": "1y", "2 años": "2y"}
+    default_p_idx = 3  # "1 año"
+else:
+    periods_map = {"1 mes": "1mo", "6 meses": "6mo", "1 año": "1y", "2 años": "2y", "5 años": "5y"}
+    default_p_idx = 2  # "1 año"
+
+with col_hist:
+    period_label = st.selectbox("Historial", list(periods_map), index=default_p_idx)
+period = periods_map[period_label]
 st.sidebar.caption("Datos: Yahoo Finance (pueden tener retraso). Caché de 15 min.")
 if st.sidebar.button("🔄 Actualizar datos"):
     st.cache_data.clear()
@@ -165,7 +223,7 @@ if not symbol:
     st.stop()
 
 with st.spinner("Descargando datos…"):
-    hist = load_history(symbol, period)
+    hist = load_history(symbol, period, interval)
 if hist.empty:
     st.error(f"No se encontraron datos para **{symbol}**. Verifica el ticker.")
     st.stop()
@@ -195,12 +253,22 @@ with tabs[0]:
 
     low_52 = quote.get("52w_low")
     high_52 = quote.get("52w_high")
+    current_p = quote.get("current_price")
+
     if low_52 is not None and high_52 is not None:
-        range_52 = f"{fmt_money(low_52, currency)} – {fmt_money(high_52, currency)}"
+        range_52 = f"{fmt_price(low_52, currency)} – {fmt_price(high_52, currency)}"
     elif low_52 is not None or high_52 is not None:
-        range_52 = fmt_money(low_52 or high_52, currency)
+        range_52 = fmt_price(low_52 or high_52, currency)
     else:
         range_52 = "—"
+
+    range_delta = None
+    if current_p and low_52 and high_52 and high_52 > low_52:
+        try:
+            pct_in_range = ((float(current_p) - float(low_52)) / (float(high_52) - float(low_52))) * 100
+            range_delta = f"{pct_in_range:.0f}% del rango"
+        except (ValueError, TypeError, ZeroDivisionError):
+            pass
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric(
@@ -210,7 +278,13 @@ with tabs[0]:
         help=get_help("price"),
     )
     c2.metric("Cap. de mercado", quote.get("market_cap") or "—", help=get_help("market_cap"))
-    c3.metric("Rango 52 sem.", range_52, help=get_help("52w_range"))
+    c3.metric(
+        "Rango 52 sem.",
+        range_52,
+        range_delta,
+        delta_color="off",
+        help=get_help("52w_range"),
+    )
     pe_raw = val_data.get("trailing_pe")
     pe_delta = interpret_pe(pe_raw) if learning_mode else None
     c4.metric(
@@ -226,6 +300,12 @@ with tabs[0]:
     target_delta = f"Obj: {target_price}" if target_price is not None else None
     c5.metric("Div. Yield", dy_str, target_delta, help=get_help("dividend_yield"))
 
+    company_desc = get_company_description(symbol, fund.get("business_summary"))
+    if company_desc:
+        with st.container(border=True):
+            st.markdown(f"🏢 **Acerca de {fund.get('company_name') or quote.get('name') or symbol}**")
+            st.write(company_desc)
+
     if currency == "COP":
         trm = load_trm()
         if "error" not in trm and quote.get("current_price"):
@@ -236,8 +316,42 @@ with tabs[0]:
     with left:
         s = hist["Close"].copy()
         s.index = s.index.tz_localize(None) if s.index.tz is not None else s.index
-        fig = go.Figure(go.Scatter(x=s.index, y=s.values, fill="tozeroy", line=dict(color="#1f77b4")))
-        fig.update_layout(template="plotly_white", height=360, margin=dict(t=20), yaxis_title=currency)
+        hover_fmt = (
+            "%{x|%Y-%m-%d %H:%M}<br>Precio: %{y:,.2f} " + currency + "<extra></extra>"
+            if interval == "1h"
+            else "%{x|%Y-%m-%d}<br>Precio: %{y:,.2f} " + currency + "<extra></extra>"
+        )
+        fig = go.Figure(go.Scatter(
+            x=s.index,
+            y=s.values,
+            fill="tozeroy",
+            line=dict(color="#1f77b4", width=1.8),
+            hovertemplate=hover_fmt,
+        ))
+        fig.update_layout(
+            template="plotly_white",
+            height=430,
+            margin=dict(t=35, b=20),
+            yaxis_title=currency,
+            hovermode="x unified",
+            xaxis=dict(
+                rangeselector=dict(
+                    buttons=[
+                        dict(count=1, label="1D", step="day", stepmode="backward"),
+                        dict(count=7, label="1S", step="day", stepmode="backward"),
+                        dict(count=1, label="1M", step="month", stepmode="backward"),
+                        dict(count=3, label="3M", step="month", stepmode="backward"),
+                        dict(count=6, label="6M", step="month", stepmode="backward"),
+                        dict(count=1, label="1A", step="year", stepmode="backward"),
+                        dict(step="all", label="Todo"),
+                    ],
+                    bgcolor="rgba(240, 242, 246, 0.9)",
+                    activecolor="#1f77b4",
+                ),
+                rangeslider=dict(visible=True, thickness=0.08),
+                type="date",
+            ),
+        )
         st.plotly_chart(fig, width="stretch")
     with right:
         st.markdown("**Datos de la sesión**")
@@ -278,7 +392,10 @@ with tabs[1]:
         c2.metric("MACD", tech["macd"]["macd_line"], tech["macd"]["status"].split(" (")[0], delta_color="off", help=get_help("macd"))
         pb = tech["bollinger_bands_20_2"]["percent_b"]
         c3.metric("Bollinger %B", "—" if pb is None else pb, help=get_help("bollinger"))
-        show_days = st.slider("Ruedas a mostrar", 60, min(len(hist), 750), min(len(hist), 252), step=10)
+        slider_unit = "Horas" if interval == "1h" else "Ruedas"
+        min_bars = min(20, len(hist))
+        default_bars = min(len(hist), 252)
+        show_bars = st.slider(f"{slider_unit} a mostrar", min_bars, min(len(hist), 750), default_bars, step=10)
 
         # Marcadores de eventos (reportes de utilidades y noticias de alto volumen)
         ev_data = load_events_and_news(symbol)
@@ -303,7 +420,7 @@ with tabs[1]:
                 })
 
         st.plotly_chart(
-            build_technical_figure(symbol, hist, currency, show_days, events=event_markers),
+            build_technical_figure(symbol, hist, currency, show_bars, events=event_markers),
             width="stretch",
         )
         with st.expander("Lectura de señales y medias móviles", expanded=True):

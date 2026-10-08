@@ -203,6 +203,7 @@ def get_fundamental_analysis(ticker: str) -> dict[str, Any]:
         "company_name": info.get("shortName") or info.get("longName"),
         "sector": info.get("sector"),
         "industry": info.get("industry"),
+        "business_summary": info.get("longBusinessSummary"),
         "valuation": {
             "market_cap": _format_large_number(info.get("marketCap")),
             "trailing_pe": round(info["trailingPE"], 2) if info.get("trailingPE") else None,

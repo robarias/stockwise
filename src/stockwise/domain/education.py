@@ -382,6 +382,66 @@ def get_metric_reading(key: str, value: Any) -> str | None:
     return None
 
 
+COMPANY_PROFILES: dict[str, str] = {
+    # Emisores Colombia (BVC)
+    "ECOPETROL": "La mayor empresa petrolera e integrada de energía de Colombia. Opera en exploración y producción de hidrocarburos, transporte por oleoductos/poliductos, refinación y transmisión eléctrica continental (a través de ISA).",
+    "ISA": "Multilatina líder en transmisión de energía eléctrica en alta tensión, gestión de sistemas de tiempo real y concesiones viales en Colombia, Brasil, Chile, Perú y Bolivia.",
+    "GEB": "Grupo empresarial multilatina con más de 125 años de trayectoria en la cadena de transmisión y distribución de electricidad y transporte de gas natural en Colombia, Perú, Brasil y Guatemala.",
+    "CELSIA": "Empresa de energía de Grupo Argos enfocada en generación renovable (solar e hídrica), transmisión y comercialización eficiente en Colombia y Centroamérica.",
+    "PROMIGAS": "Líder en transporte y distribución de gas natural y energía eléctrica en Colombia y Perú, operando más de 3.300 km de gasoductos e infraestructura estratégica.",
+    "TERPEL": "Compañía líder en distribución de combustibles líquidos, lubricantes y gas natural vehicular en Colombia, con amplia presencia en estaciones de servicio en la región andina.",
+    "CIBEST": "Holding financiero matriz de Bancolombia, el banco más grande de Colombia. Ofrece servicios de banca universal, crédito, leasing, banca de inversión y la billetera digital Nequi.",
+    "PFCIBEST": "Acción preferencial de Grupo Cibest / Bancolombia con dividendo preferencial sin derecho a voto.",
+    "PFDAVVNDA": "Banco colombiano líder perteneciente al Grupo Bolívar, con fuerte presencia en banca de personas, crédito hipotecario, banca corporativa y pagos digitales (DaviPlata).",
+    "PFAVAL": "Grupo financiero líder de Colombia y Centroamérica, accionista mayoritario de Banco de Bogotá, Banco de Occidente, Banco Popular, Banco AV Villas y fondo Porvenir.",
+    "BOGOTA": "La institución bancaria comercial más antigua de Colombia (fundada en 1870), filial de Grupo Aval, especializada en banca corporativa, pymes y consumo.",
+    "OCCIDENTE": "Entidad bancaria perteneciente a Grupo Aval, especializada en crédito empresarial, financiamiento automotriz y soluciones de leasing comercial.",
+    "BHI": "Holding financiero regional que agrupa las operaciones bancarias de BAC Credomatic en seis países de Centroamérica.",
+    "CORFICOLCF": "Corporación financiera líder en banca de inversión y gestión de grandes concesiones viales, aeroportuarias, energía y hotelería en Colombia.",
+    "PFCORFICOL": "Acción preferencial de Corficolombiana con dividendo mínimo preferencial sin derecho a voto.",
+    "GRUPOSURA": "Holding multilatino de inversiones enfocado en servicios financieros, seguros (Suramericana) y gestión de activos y pensiones (SURA Asset Management).",
+    "PFGRUPSURA": "Acción preferencial de Grupo Sura con prioridad en el pago de dividendos sin derecho a voto.",
+    "GRUPOARGOS": "Holding de infraestructura con inversiones estratégicas en cemento (Cementos Argos), energía (Celsia), concesiones viales y aeroportuarias (Odinsa) y rentas inmobiliarias.",
+    "PFGRUPOARG": "Acción preferencial de Grupo Argos con derecho a dividendo prioritario sin voto.",
+    "CEMARGOS": "Empresa multinacional productora y comercializadora de cemento y concreto, con posición de liderazgo en Colombia, Estados Unidos, Centroamérica y el Caribe.",
+    "PFCEMARGOS": "Acción preferencial de Cementos Argos con dividendo preferente sin derecho a voto.",
+    "CNEC": "Canacol Energy es el mayor productor y explorador independiente de gas natural convencional en Colombia continental, suministrando a la Costa Caribe e interior.",
+    "NUTRESA": "Compañía líder en alimentos procesados en Colombia y América Latina (cárnicos, galletas, chocolates, café, pastas y helados).",
+    "EXITO": "Cadena de comercio minorista líder en Colombia y Sudamérica (hipermercados, supermercados y comercio electrónico), operando marcas como Éxito, Carulla y Surtimax.",
+    "MINEROS": "Empresa minera colombiana con más de 45 años de operaciones en minería aluvial y subterránea de oro y metales preciosos en Colombia, Nicaragua y Argentina.",
+    "CONCONCRET": "Compañía constructora e inmobiliaria colombiana dedicada al diseño, edificación y desarrollo de grandes obras de ingeniería civil e infraestructura pública y privada.",
+    "ENKA": "Empresa industrial pionera en economía circular y reciclaje de botellas PET en Sudamérica, fabricando fibras, polímeros e hilazas técnicas.",
+    "ETB": "Empresa de telecomunicaciones de Bogotá, proveedora de fibra óptica, telecomunicaciones fijas y móviles, conectividad corporativa y servicios de datos.",
+    "ICOLCAP": "Fondo bursátil (ETF) que replica el comportamiento de las acciones más representativas y líquidas del mercado de valores colombiano (índice MSCI Colcap).",
+    "HCOLSEL": "Fondo cotizado (ETF) que busca seguir el rendimiento del índice MSCI Colombia Select, agrupando las principales emisoras del país.",
+
+    # Populares EE.UU.
+    "AAPL": "Apple diseña, fabrica y comercializa dispositivos móviles y de computación personal (iPhone, Mac, iPad, Apple Watch) y una amplia gama de servicios por suscripción (App Store, iCloud, Apple Music, Apple Pay).",
+    "MSFT": "Microsoft es líder global en software, computación en la nube (Azure), inteligencia artificial (asociación con OpenAI), productividad empresarial (Office 365, LinkedIn) y videojuegos (Xbox).",
+    "NVDA": "Nvidia es el líder mundial en diseño de procesadores gráficos (GPU) y plataformas de computación acelerada para inteligencia artificial generativa, centros de datos y videojuegos.",
+    "GOOGL": "Alphabet es la empresa matriz de Google, dominando la búsqueda en internet, publicidad digital, YouTube, el sistema operativo móvil Android y la nube empresarial (Google Cloud).",
+    "AMZN": "Amazon lidera el comercio electrónico global y la infraestructura en la nube (AWS), además de contar con servicios de streaming (Prime Video), publicidad digital y logística avanzada.",
+    "META": "Meta Platforms opera las redes sociales y plataformas de mensajería más grandes del mundo (Facebook, Instagram, WhatsApp, Messenger, Threads) e investiga en inteligencia artificial y realidad virtual.",
+    "TSLA": "Tesla diseña y fabrica vehículos eléctricos, sistemas de almacenamiento y generación de energía solar, e impulsa el desarrollo de software de conducción autónoma y robótica humanoide.",
+    "JPM": "JPMorgan Chase es la mayor entidad financiera de Estados Unidos por activos, líder global en banca de inversión, tesorería, gestión de patrimonio y banca de consumo.",
+    "KO": "The Coca-Cola Company es el mayor fabricante, distribuidor y comercializador mundial de bebidas no alcohólicas (Coca-Cola, Sprite, Fanta, Minute Maid, Powerade, Dasani).",
+    "SPY": "El SPDR S&P 500 ETF Trust es el fondo cotizado más grande y líquido del mundo; replica el índice S&P 500 que agrupa a las 500 mayores empresas públicas de Estados Unidos.",
+    "QQQ": "Invesco QQQ Trust es un ETF que replica el índice Nasdaq-100, compuesto por las 100 empresas no financieras más grandes e innovadoras de Wall Street, con fuerte concentración en tecnología.",
+}
+
+
+def get_company_description(symbol: str, raw_summary: str | None = None) -> str | None:
+    """Obtiene una descripción concisa de la empresa, priorizando perfiles curados en español."""
+    sym_clean = symbol.upper().replace(".CL", "").strip()
+    if sym_clean in COMPANY_PROFILES:
+        return COMPANY_PROFILES[sym_clean]
+    if symbol.upper() in COMPANY_PROFILES:
+        return COMPANY_PROFILES[symbol.upper()]
+    if raw_summary:
+        return raw_summary.strip()
+    return None
+
+
 SECTION_GUIDES: dict[str, dict[str, Any]] = {
     "summary_and_fundamentals": {
         "title": "💡 Guía para Principiantes: ¿Cómo analizar los Fundamentales de una Empresa?",

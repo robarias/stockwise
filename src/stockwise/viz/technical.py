@@ -117,9 +117,31 @@ def build_technical_figure(
                              line=dict(color="#ff9800", width=1.3)), row=4, col=1)
 
     fig.update_layout(
-        template="plotly_white", height=900, hovermode="x unified",
-        xaxis_rangeslider_visible=False,
+        template="plotly_white", height=930, hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(t=80),
+        margin=dict(t=80, b=40),
+    )
+    # Botones de acceso rápido para zoom en el gráfico superior (velas)
+    fig.update_xaxes(
+        rangeselector=dict(
+            buttons=[
+                dict(count=1, label="1D", step="day", stepmode="backward"),
+                dict(count=7, label="1S", step="day", stepmode="backward"),
+                dict(count=1, label="1M", step="month", stepmode="backward"),
+                dict(count=3, label="3M", step="month", stepmode="backward"),
+                dict(count=6, label="6M", step="month", stepmode="backward"),
+                dict(count=1, label="1A", step="year", stepmode="backward"),
+                dict(step="all", label="Todo"),
+            ],
+            bgcolor="rgba(240, 242, 246, 0.9)",
+            activecolor="#26a69a",
+        ),
+        rangeslider=dict(visible=False),
+        row=1, col=1,
+    )
+    # Barra deslizadora inferior sincronizada con todos los subplots
+    fig.update_xaxes(
+        rangeslider=dict(visible=True, thickness=0.06),
+        row=4, col=1,
     )
     return fig
