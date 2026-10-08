@@ -96,13 +96,19 @@ def get_stock_quote(ticker: str) -> dict[str, Any]:
     """
     ticker_clean = resolve_ticker(ticker)
     stock = yf.Ticker(ticker_clean)
-    info = stock.info
+    try:
+        info = stock.info or {}
+    except Exception:
+        info = {}
 
     if not info or ("currentPrice" not in info and "regularMarketPrice" not in info and "navPrice" not in info):
         # Intentar obtener el último registro de historia si info está incompleto
-        hist = stock.history(period="5d")
+        try:
+            hist = stock.history(period="5d")
+        except Exception:
+            hist = pd.DataFrame()
         if hist.empty:
-            return {"error": f"No se encontraron datos para el ticker '{ticker_clean}'."}
+            return {"error": f"No se pudieron obtener datos para '{ticker_clean}' (posible bloqueo temporal o rate-limit de Yahoo Finance)."}
         last_close = float(hist["Close"].iloc[-1])
         prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else last_close
         change = last_close - prev_close
@@ -164,7 +170,10 @@ def get_technical_analysis(ticker: str, period: str = "1y") -> dict[str, Any]:
     """
     ticker_clean = resolve_ticker(ticker)
     stock = yf.Ticker(ticker_clean)
-    hist = stock.history(period=period, interval="1d")
+    try:
+        hist = stock.history(period=period, interval="1d")
+    except Exception:
+        hist = pd.DataFrame()
 
     if hist.empty or len(hist) < 20:
         return {"error": f"Historial insuficiente para calcular indicadores de '{ticker_clean}'."}
@@ -187,10 +196,13 @@ def get_fundamental_analysis(ticker: str) -> dict[str, Any]:
     """
     ticker_clean = resolve_ticker(ticker)
     stock = yf.Ticker(ticker_clean)
-    info = stock.info
+    try:
+        info = stock.info or {}
+    except Exception:
+        info = {}
 
     if not info or ("shortName" not in info and "longName" not in info):
-        return {"error": f"No se encontró información fundamental para '{ticker_clean}'."}
+        return {"error": f"No se encontró información fundamental para '{ticker_clean}' (posible bloqueo temporal o rate-limit de Yahoo Finance)."}
 
     div_yield_pct = _dividend_yield_pct(info)
 
@@ -241,7 +253,10 @@ def get_risk_and_performance(ticker: str, period: str = "1y") -> dict[str, Any]:
     """
     ticker_clean = resolve_ticker(ticker)
     stock = yf.Ticker(ticker_clean)
-    hist = stock.history(period=period, interval="1d")
+    try:
+        hist = stock.history(period=period, interval="1d")
+    except Exception:
+        hist = pd.DataFrame()
 
     if hist.empty or len(hist) < 10:
         return {"error": f"Datos insuficientes para calcular métricas de riesgo para '{ticker_clean}'."}
@@ -271,8 +286,14 @@ def compare_stocks(tickers: list[str] | str, period: str = "1y") -> dict[str, An
         sym = resolve_ticker(raw_ticker)
         try:
             stock = yf.Ticker(sym)
-            hist = stock.history(period=period, interval="1d")
-            info = stock.info
+            try:
+                hist = stock.history(period=period, interval="1d")
+            except Exception:
+                hist = pd.DataFrame()
+            try:
+                info = stock.info or {}
+            except Exception:
+                info = {}
 
             if hist.empty or len(hist) < 10:
                 continue
@@ -316,7 +337,10 @@ def get_historical_candles(ticker: str, period: str = "1mo", interval: str = "1d
     """
     ticker_clean = resolve_ticker(ticker)
     stock = yf.Ticker(ticker_clean)
-    hist = stock.history(period=period, interval=interval)
+    try:
+        hist = stock.history(period=period, interval=interval)
+    except Exception:
+        hist = pd.DataFrame()
 
     if hist.empty:
         return {"error": f"No se obtuvieron velas históricas para '{ticker_clean}'."}
@@ -363,7 +387,10 @@ def forecast_stock_prices(ticker: str, horizon: int = 30, model: str = "auto", p
         include_daily_values: Si es True, incluye el pronóstico día a día en la respuesta.
     """
     sym = resolve_ticker(ticker)
-    hist = yf.Ticker(sym).history(period=period, interval="1d")
+    try:
+        hist = yf.Ticker(sym).history(period=period, interval="1d")
+    except Exception:
+        hist = pd.DataFrame()
     if hist.empty:
         return {"error": f"No se obtuvieron datos históricos para '{sym}'."}
 
@@ -424,7 +451,10 @@ def get_colombian_stock_analysis(ticker: str, period: str = "1y") -> dict[str, A
                          "Use list_colombian_stocks_catalog o el sufijo '.CL' (ej: 'ECOPETROL.CL')."}
 
     stock = yf.Ticker(sym)
-    hist = stock.history(period=period, interval="1d")
+    try:
+        hist = stock.history(period=period, interval="1d")
+    except Exception:
+        hist = pd.DataFrame()
     if hist.empty or len(hist) < 20:
         return {"error": f"Historial insuficiente para '{sym}'. Verifique el símbolo con list_colombian_stocks_catalog."}
 

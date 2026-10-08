@@ -1,3 +1,15 @@
+---
+title: StockWise
+emoji: 📈
+colorFrom: blue
+colorTo: indigo
+sdk: streamlit
+sdk_version: "1.40.0"
+app_file: app.py
+pinned: false
+license: mit
+---
+
 # Servidor MCP para Análisis de Bolsa y Mercado Financiero
 
 Servidor basado en el estándar **Model Context Protocol (MCP)** implementado con `FastMCP` y `yfinance`. Permite que agentes de Inteligencia Artificial (Claude, Cursor, Antigravity, etc.) realicen análisis cuantitativo, técnico y fundamental de acciones y activos bursátiles en tiempo real.

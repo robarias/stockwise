@@ -46,7 +46,10 @@ def fetch_stock_events_and_news(
     stock = yf.Ticker(symbol)
 
     # 1. Calendario corporativo próximo
-    calendar_raw = getattr(stock, "calendar", None)
+    try:
+        calendar_raw = getattr(stock, "calendar", None)
+    except Exception:
+        calendar_raw = None
     upcoming = parse_upcoming_events(calendar_raw)
 
     # 2. Histórico de precios si no fue provisto
@@ -57,7 +60,10 @@ def fetch_stock_events_and_news(
             hist = pd.DataFrame()
 
     # 3. Reportes trimestrales históricos (sorpresa de EPS y reacción)
-    earnings_dates = getattr(stock, "earnings_dates", None)
+    try:
+        earnings_dates = getattr(stock, "earnings_dates", None)
+    except Exception:
+        earnings_dates = None
     recent_earnings = analyze_earnings_impact(earnings_dates, hist, limit=4)
 
     # 4. Noticias recientes

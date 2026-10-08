@@ -7,12 +7,22 @@ Reutiliza directamente la lógica del servidor MCP (server.py, analysis.py, time
 por lo que ambos frentes (MCP y web) siempre entregan los mismos resultados.
 """
 
+import os
 from typing import Any
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
+
+# Configuración de proxy si existe en st.secrets (útil para cloud runtimes restringidos)
+try:
+    if hasattr(st, "secrets"):
+        for proxy_key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+            if proxy_key in st.secrets:
+                os.environ[proxy_key] = str(st.secrets[proxy_key])
+except Exception:
+    pass
 
 from stockwise.analytics.forecasting import MODELS, forecast_close
 from stockwise.analytics.indicators import calculate_technical_indicators
@@ -64,7 +74,10 @@ CACHE_TTL = 15 * 60  # segundos
 # ---------------------------------------------------------------------------
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
 def load_history(symbol: str, period: str, interval: str = "1d") -> pd.DataFrame:
-    return yf.Ticker(symbol).history(period=period, interval=interval)
+    try:
+        return yf.Ticker(symbol).history(period=period, interval=interval)
+    except Exception:
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
@@ -225,7 +238,13 @@ if not symbol:
 with st.spinner("Descargando datos…"):
     hist = load_history(symbol, period, interval)
 if hist.empty:
-    st.error(f"No se encontraron datos para **{symbol}**. Verifica el ticker.")
+    st.error(
+        f"⚠️ No se encontraron datos para **{symbol}**.\n\n"
+        "**Posibles causas:**\n"
+        "1. El símbolo bursátil no existe o está escrito de forma incorrecta.\n"
+        "2. **Restricción de IP de Yahoo Finance (HTTP 429 / 401)**: Plataformas en nubes públicas como Streamlit Cloud sufren bloqueos periódicos de Yahoo Finance en sus pools de IPs compartidas. "
+        "Para una operación estable y sin bloqueos, se recomienda desplegar en **Hugging Face Spaces** o configurar un proxy en `st.secrets`."
+    )
     st.stop()
 
 quote = load_quote(symbol)
