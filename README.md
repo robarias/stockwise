@@ -10,101 +10,444 @@ pinned: false
 license: mit
 ---
 
-# Servidor MCP para Análisis de Bolsa y Mercado Financiero
+# 📈 StockWise: Análisis Bursátil y Financiero con Inteligencia Artificial
 
-Servidor basado en el estándar **Model Context Protocol (MCP)** implementado con `FastMCP` y `yfinance`. Permite que agentes de Inteligencia Artificial (Claude, Cursor, Antigravity, etc.) realicen análisis cuantitativo, técnico y fundamental de acciones y activos bursátiles en tiempo real.
+> Servidor y plataforma analítica basada en el estándar **Model Context Protocol (MCP)** y **Streamlit** para el análisis cuantitativo, técnico, fundamental y predictivo de mercados financieros (EE. UU., globales y Bolsa de Valores de Colombia - BVC).
 
 ---
 
-## 🛠️ Herramientas Disponibles (Tools)
+<a id="tabla-de-contenido"></a>
+## 📑 Tabla de Contenido
 
-| Herramienta | Parámetros | Descripción |
-| :--- | :--- | :--- |
-| `get_stock_quote` | `ticker: str` | Cotización actual, variación del día, rango de 52 semanas, volumen y capitalización de mercado. |
-| `get_technical_analysis` | `ticker: str`, `period: str` | Indicadores técnicos: **RSI (14)**, **MACD (12, 26, 9)**, **Bandas de Bollinger** y **Medias Móviles (SMA 20, 50, 200, EMA 20)** con lectura e interpretación automática de señales. |
-| `get_fundamental_analysis` | `ticker: str` | Ratios de valuación (**P/E, Forward P/E, PEG, P/B, EV/EBITDA**), rentabilidad (**Margen Neto, ROE**), salud financiera (**Deuda/Equity, Current Ratio**) y consenso de analistas. |
-| `get_risk_and_performance` | `ticker: str`, `period: str` | Rendimiento acumulado, desglose (1s, 1m, 3m, 6m, 1a), **volatilidad anualizada** y **Máximo Drawdown**. |
-| `compare_stocks` | `tickers: list[str]`, `period: str` | Comparación cruzada de rendimiento, riesgo y valuación entre múltiples activos. |
-| `get_historical_candles` | `ticker: str`, `period: str`, `interval: str`, `limit: int` | Velas japonesas recientes (Open, High, Low, Close, Volume, Cambio %). |
-| `forecast_stock_prices` | `ticker`, `horizon=30`, `model='auto'\|'arima'\|'ets'`, `period='2y'`, `include_daily_values` | Serie temporal: pronóstico de cierre con **IC 95%**, backtest vs. benchmark ingenuo y **gráfico HTML interactivo** (US y Colombia). |
-| `list_colombian_stocks_catalog` | `sector: str` *(opcional)* | Catálogo de acciones y ETFs de la **BVC** (símbolo `.CL`, sector, tipo). |
-| `get_colombian_stock_analysis` | `ticker: str`, `period: str` | Análisis integral de una acción colombiana: precio en COP y USD (TRM), técnico, riesgo y fundamentales. |
-| `get_colombian_trm` | *(ninguno)* | Consulta oficial de la TRM (COP por USD) vigente desde Datos Abiertos Colombia. |
-| `convert_usd_to_cop` | `usd_amount: float` | Conversión directa de USD a COP utilizando la TRM oficial actual. |
-| `get_stock_events_and_news` | `ticker: str`, `limit: int = 8` | Eventos corporativos (balances, dividendos), noticias recientes con sentimiento clasificado y correlación de impacto en precio y volumen. |
+- [1. Sección No Técnica: Visión General y Propósito](#1-sección-no-técnica-visión-general-y-propósito)
+  - [1.1. ¿Qué es StockWise?](#11-qué-es-stockwise)
+  - [1.2. ¿Qué problemas resuelve?](#12-qué-problemas-resuelve)
+  - [1.3. ¿Para quién está pensado?](#13-para-quién-está-pensado)
+  - [1.4. ¿Cómo funciona en la práctica?](#14-cómo-funciona-en-la-práctica)
+  - [1.5. Mercados y activos soportados](#15-mercados-y-activos-soportados)
+  - [1.6. Ejemplos de uso en lenguaje cotidiano](#16-ejemplos-de-uso-en-lenguaje-cotidiano)
+  - [1.7. Descargo de Responsabilidad (Disclaimer Financiero)](#17-descargo-de-responsabilidad-disclaimer-financiero)
+- [2. Sección Técnica: Arquitectura y Especificación](#2-sección-técnica-arquitectura-y-especificación)
+  - [2.1. Arquitectura de Software y Diseño en Capas](#21-arquitectura-de-software-y-diseño-en-capas)
+  - [2.2. Motor Cuantitativo y Modelos Analíticos](#22-motor-cuantitativo-y-modelos-analíticos)
+  - [2.3. Catálogo Completo de Herramientas MCP](#23-catálogo-completo-de-herramientas-mcp)
+  - [2.4. Fuentes de Datos e Integraciones](#24-fuentes-de-datos-e-integraciones)
+  - [2.5. Modos de Ejecución e Interfaces](#25-modos-de-ejecución-e-interfaces)
+- [3. Instalación y Puesta en Marcha](#3-instalación-y-puesta-en-marcha)
+  - [3.1. Requisitos Previos del Sistema](#31-requisitos-previos-del-sistema)
+  - [3.2. Configuración del Entorno Virtual](#32-configuración-del-entorno-virtual)
+  - [3.3. Instalación de Dependencias](#33-instalación-de-dependencias)
+- [4. Configuración Agnóstica de Clientes y Plataformas](#4-configuración-agnóstica-de-clientes-y-plataformas)
+  - [4.1. Estándar MCP y Compatibilidad Universal](#41-estándar-mcp-y-compatibilidad-universal)
+  - [4.2. Plantilla de Configuración Estándar (`mcpServers`)](#42-plantilla-de-configuración-estándar-mcpservers)
+  - [4.3. Guía de Adaptación a Cualquier Entorno](#43-guía-de-adaptación-a-cualquier-entorno)
+- [5. Calidad de Código, Pruebas y Validación](#5-calidad-de-código-pruebas-y-validación)
+- [6. Estructura del Repositorio](#6-estructura-del-repositorio)
+- [7. Licencia](#7-licencia)
 
-### 🇨🇴 Acciones de Colombia (BVC)
+---
 
-Yahoo Finance usa el sufijo **`.CL`** (ej: `ECOPETROL.CL`, cotiza en COP). Todas las herramientas aceptan además
-el nombre sin sufijo (`ecopetrol`, `ISA`), `.BVC` o alias (`Bancolombia` → `CIBEST.CL`, `PFBCOLOM` → `PFCIBEST.CL`).
-El catálogo vive en [`colombia.py`](colombia.py). Nota: `CIB` (sin sufijo) sigue siendo el ADR de NYSE en USD.
+## 1. Sección No Técnica: Visión General y Propósito
 
-### 📈 Series temporales y gráficos
+<a id="1-sección-no-técnica-visión-general-y-propósito"></a>
 
-- [`timeseries.py`](timeseries.py): ADF, ajuste de ARIMA (orden por AIC) y ETS sobre el log-precio, backtest *hold-out* (MAE, MAPE, RMSE, acierto direccional, cobertura del IC y habilidad vs. random walk), diagnóstico Ljung-Box.
-- [`charts.py`](charts.py): figura Plotly (histórico + backtest + pronóstico con banda 95%). Los HTML se guardan en `charts/` (ignorada por git) y la herramienta devuelve la ruta (`chart_html`) y la URL `file://`.
-- Con `model='auto'` se elige el modelo de menor error en el backtest. Si no supera al benchmark ingenuo, la respuesta lo advierte.
+### 1.1. ¿Qué es StockWise?
+<a id="11-qué-es-stockwise"></a>
+**StockWise** es un puente inteligente entre el mundo de las finanzas y la Inteligencia Artificial. Permite que cualquier persona pueda consultar, analizar e interpretar acciones de empresas y fondos de inversión de forma sencilla, ya sea conversando en lenguaje natural con su asistente de IA favorito o explorando una interfaz visual intuitiva en su navegador web.
 
-### 🖥️ Aplicación web (Streamlit)
+El proyecto implementa el estándar abierto **Model Context Protocol (MCP)**, una tecnología que dota a los modelos de lenguaje de "herramientas" para consultar datos reales en vivo, calcular indicadores y entregar respuestas con respaldo matemático y financiero riguroso.
 
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 1.2. ¿Qué problemas resuelve?
+<a id="12-qué-problemas-resuelve"></a>
+1. **La barrera de entrada a la información bursátil:** La información de mercados suele estar dispersa en portales complejos, terminales costosas o gráficos difíciles de interpretar. StockWise unifica y simplifica este acceso.
+2. **Las alucinaciones en modelos de IA:** Al consultar a un asistente convencional sobre precios o balances de una empresa, este puede inventar datos desactualizados. Con StockWise, la IA consulta cifras en tiempo real directamente de fuentes de mercado antes de responder.
+3. **Falta de cobertura del mercado local:** La mayoría de plataformas globales ignoran o dificultan el acceso a mercados emergentes como Colombia. StockWise incluye de manera nativa acciones de la **Bolsa de Valores de Colombia (BVC)** y la **Tasa Representativa del Mercado (TRM)** oficial.
+4. **Decisiones a ciegas:** Ofrece tanto un diagnóstico del negocio (salud financiera) como del precio (tendencias, caídas históricas y pronósticos estadísticos), ayudando a tomar decisiones más informadas.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 1.3. ¿Para quién está pensado?
+<a id="13-para-quién-está-pensado"></a>
+- **Inversionistas individuales y entusiastas:** Que buscan evaluar empresas de forma rápida sin tener que armar hojas de cálculo complejas para cada activo.
+- **Usuarios de Asistentes de IA:** Que desean conversar con su modelo de preferencia (Claude, ChatGPT, Gemini, etc.) sobre finanzas y recibir respuestas fundamentadas en datos verificables.
+- **Analistas, estudiantes e investigadores:** Que necesitan calcular métricas de riesgo, proyectar tendencias temporales y correlacionar noticias con el comportamiento del mercado.
+- **Desarrolladores y equipos de producto:** Que requieren un motor reutilizable, modular y probado para dotar a sus aplicaciones de capacidades financieras.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 1.4. ¿Cómo funciona en la práctica?
+<a id="14-cómo-funciona-en-la-práctica"></a>
+Existen dos formas principales de utilizar StockWise:
+
+1. **Vía Conversación (Modo Asistente / MCP):** Le haces una pregunta a tu IA en tu entorno o aplicación habitual (por ejemplo: *"¿Cómo está la salud financiera de Microsoft?"*). El asistente invoca automáticamente las herramientas de StockWise, obtiene los balances reales, evalúa los ratios y te responde con un resumen claro.
+2. **Vía Interfaz Web (Modo Dashboard):** Inicias una aplicación web visual donde puedes seleccionar cualquier acción, ver velas interactivas, revisar semáforos de indicadores técnicos, consultar noticias y simular pronósticos a futuro con un par de clics.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 1.5. Mercados y activos soportados
+<a id="15-mercados-y-activos-soportados"></a>
+- **Mercado de Estados Unidos y Global:** Acciones individuales (`AAPL`, `MSFT`, `NVDA`, `AMZN`, etc.) y fondos cotizados / ETFs (`SPY`, `QQQ`, `VOO`).
+- **Bolsa de Valores de Colombia (BVC):** Acciones ordinarias, preferenciales y ETFs colombianos (`ECOPETROL`, `Bancolombia` / `CIBEST`, `ISA`, `PFBCOLOM`, `HCOLSEL`, etc.), con precios en pesos colombianos (COP).
+- **Divisas y Tipo de Cambio:** Consulta en vivo de la TRM oficial colombiana certificada por el Estado y conversión automática entre dólares (USD) y pesos (COP).
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 1.6. Ejemplos de uso en lenguaje cotidiano
+<a id="16-ejemplos-de-uso-en-lenguaje-cotidiano"></a>
+- *"¿A qué precio cerró Apple hoy y cuál ha sido su variación en el año?"*
+- *"Compara el riesgo y rendimiento entre Amazon, Google y Microsoft en los últimos 12 meses: ¿cuál tuvo la peor caída?"*
+- *"Revisa el RSI y las medias móviles de Nvidia: ¿muestra señales de sobrecompra o tendencia alcista?"*
+- *"¿Cómo están los números de Ecopetrol y cuánto vale una acción en dólares usando la TRM oficial de hoy?"*
+- *"Genera un pronóstico estadístico de precio para ISA a 30 ruedas bursátiles y muéstrame el gráfico interactivo."*
+- *"¿Cuáles son las últimas noticias de Tesla y qué impacto han tenido en su volumen de negociación?"*
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 1.7. Descargo de Responsabilidad (Disclaimer Financiero)
+<a id="17-descargo-de-responsabilidad-disclaimer-financiero"></a>
+
+> [!WARNING]
+> **Aviso Legal y Descargo de Responsabilidad (Disclaimer):**
+> 
+> **StockWise es exclusivamente una herramienta de carácter analítico, educativo y de investigación.** 
+> 
+> Su propósito es facilitar el acceso, procesamiento y visualización de datos bursátiles y financieros para que cada persona pueda realizar sus propios análisis y contar con mejores insumos de información. 
+> 
+> En **ningún caso**:
+> 1. La información, métricas, indicadores, análisis técnicos, pronósticos estadísticos o respuestas generadas por los modelos de IA constituyen **asesoramiento financiero, recomendación de inversión, aval crediticio ni sugerencia de compra o venta de ningún activo, acción, divisa o instrumento bursátil**.
+> 2. Los rendimientos pasados ni las proyecciones estadísticas garantizan resultados futuros. Las inversiones en mercados financieros conllevan riesgo inherente de pérdida de capital.
+> 3. Los autores, mantenedores y contribuidores del proyecto NO asumen responsabilidad alguna por las decisiones de inversión, pérdidas económicas o ganancias obtenidas por los usuarios.
+> 
+> **Cada usuario es enteramente responsable de sus propias decisiones patrimoniales.** Si requieres asesoría profesional adaptada a tu perfil de riesgo y situación patrimonial particular, consulta a un asesor financiero debidamente certificado y registrado ante los entes reguladores de tu país.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+## 2. Sección Técnica: Arquitectura y Especificación
+
+<a id="2-sección-técnica-arquitectura-y-especificación"></a>
+
+### 2.1. Arquitectura de Software y Diseño en Capas
+<a id="21-arquitectura-de-software-y-diseño-en-capas"></a>
+El proyecto está construido bajo una **Arquitectura en Capas Limpia (Clean Layered Architecture)**. Las dependencias entre capas están estrictamente verificadas de arriba hacia abajo mediante contratos con `import-linter`:
+
+```mermaid
+graph TD
+    UI[Interfaces: MCP Server / Web Streamlit / CLI / API] --> SVC[Servicios: Orquestación, Eventos y Noticias]
+    SVC --> VIZ[Visualización: Plotly charts interactivos]
+    SVC --> DATA[Datos: Conectores y Fuentes Externas]
+    SVC --> AN[Analítica: Indicadores, Riesgo, Forecasting]
+    VIZ --> DOM[Dominio: Catálogos, Resolutores, Mercados, Reglas de Negocio]
+    DATA --> DOM
+    AN --> DOM
+```
+
+- **`stockwise.interfaces`**: Puntos de contacto externos. Expone el servidor MCP (`FastMCP` sobre stdio/SSE), la aplicación web en Streamlit y los comandos de consola.
+- **`stockwise.services`**: Casos de uso de alto nivel, orquestando analítica, extracción de datos y correlación temporal de noticias.
+- **`stockwise.viz`**: Generación de figuras vectoriales interactivas mediante Plotly (velas con anotaciones, bandas de confianza y comparativas normalizadas base 100).
+- **`stockwise.data`**: Clientes de acceso a datos externos (`yfinance` y API REST de Datos Abiertos Colombia) con mecanismos de caché en memoria y tolerancia a fallos.
+- **`stockwise.analytics`**: Motores matemáticos, estadísticos y cuantitativos puros sin acoplamiento a frameworks de interfaz.
+- **`stockwise.domain`**: Entidades, enumeraciones, metadatos bursátiles y catálogo de acciones con resolución inteligente de tickers.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 2.2. Motor Cuantitativo y Modelos Analíticos
+<a id="22-motor-cuantitativo-y-modelos-analíticos"></a>
+
+#### 1. Análisis Técnico y Momento
+- **RSI (Relative Strength Index):** Periodo estándar de 14 ruedas con media móvil suavizada de Wilder. Detección automática de zonas de sobrecompra (> 70) y sobreventa (< 30).
+- **MACD (Moving Average Convergence Divergence):** Configuración estándar (12, 26, 9) calculando línea MACD rápida, línea de señal lenta e histograma de divergencia con detección de cruces alcistas/bajistas.
+- **Bandas de Bollinger:** Media móvil simple (SMA 20) y dispersión a $\pm 2$ desviaciones estándar, incluyendo cálculo de posición relativa `%B`.
+- **Medias Móviles:** Medias móviles simples (SMA 20, SMA 50, SMA 200) y exponencial (EMA 20) con diagnóstico de alineación de tendencia (Cruce Dorado / Cruce de la Muerte).
+
+#### 2. Valuación Fundamental y Salud Financiera
+- **Ratios de Valuación:** P/E histórico (Trailing P/E), P/E proyectado (Forward P/E), PEG Ratio, Price-to-Book (P/B), EV/EBITDA.
+- **Rentabilidad y Balance:** Margen de utilidad neta, Margen operativo, Retorno sobre capital (ROE), Deuda/Patrimonio (Debt-to-Equity), Razón corriente de liquidez (Current Ratio) y Flujo de caja libre (Free Cash Flow).
+- **Consenso de Analistas:** Precio objetivo medio de consenso y clasificación estandarizada de recomendación (*BUY, HOLD, UNDERPERFORM*).
+
+#### 3. Métricas de Riesgo y Desempeño
+- **Rendimiento Acumulado:** Retorno porcentual del periodo y desglose en horizontes temporales móviles (1 semana, 1 mes, 3 meses, 6 meses, 1 año).
+- **Volatilidad Anualizada:** Desviación estándar de los retornos logarítmicos diarios escalada por factor anual de $\sqrt{252}$.
+- **Máximo Drawdown (MDD):** Pérdida porcentual máxima observada desde un pico local hasta su mínimo valle posterior en la serie analizada.
+
+#### 4. Modelado Predictivo y Series Temporales
+- **Pruebas de Estacionariedad:** Test de Dickey-Fuller Aumentado (ADF) sobre log-precios y retornos para evaluar orden de integración.
+- **Modelos Estadísticos:**
+  - **ARIMA $(p, d, q)$:** Búsqueda y ajuste de órdenes optimizando el criterio de información de Akaike (AIC).
+  - **ETS (Error-Trend-Seasonal):** Modelos de suavizamiento exponencial sobre la trayectoria temporal.
+- **Validación Cruzada (Hold-Out Backtesting):** Evaluación rigurosa sobre ventana fuera de muestra calculando métricas de error: **MAE**, **MAPE**, **RMSE**, acierto direccional de signo (%) y cobertura empírica del intervalo de confianza al 95%.
+- **Benchmark Ingenuo (Naive / Random Walk):** Comparación obligatoria de habilidad predictiva frente a un paseo aleatorio. Si el modelo estadístico no supera al benchmark ingenuo, el sistema emite una advertencia explícita de fiabilidad.
+- **Exportación Interactiva:** Generación de gráficos autónomos en formato HTML mediante Plotly con ruta local y URI accesible.
+
+#### 5. Eventos Corporativos y Sentimiento de Noticias
+- Calendario de reportes de resultados trimestrales (fechas y sorpresas históricas de EPS frente a estimaciones).
+- Calendario de dividendos (fechas ex-dividendo y dividend yields).
+- Clasificación de sentimiento en titulares informativos recientes (Positivo, Negativo, Neutral) y análisis de correlación con volumen de negociación anormal y saltos en precio en la sesión correspondiente.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 2.3. Catálogo Completo de Herramientas MCP
+<a id="23-catálogo-completo-de-herramientas-mcp"></a>
+
+El servidor registra las siguientes herramientas públicas accesibles por cualquier cliente compatible:
+
+| Herramienta | Parámetros | Tipo Retorno | Descripción Técnica |
+| :--- | :--- | :--- | :--- |
+| `get_stock_quote` | `ticker: str` | `dict` | Cotización en tiempo real/último cierre, variación absoluta y %, rango 52 semanas, volumen promedio y capitalización de mercado. |
+| `get_technical_analysis` | `ticker: str`, `period: str = '1y'` | `dict` | Cálculo de RSI(14), MACD(12,26,9), Bandas de Bollinger(20,2), SMA(20,50,200), EMA(20) y notas de señalización técnica. |
+| `get_fundamental_analysis` | `ticker: str` | `dict` | Ratios de valuación (P/E, PEG, P/B, EV/EBITDA), márgenes de rentabilidad, ROE, apalancamiento, liquidez y consenso de analistas. |
+| `get_risk_and_performance` | `ticker: str`, `period: str = '1y'` | `dict` | Retorno acumulado, desglose a 1s/1m/3m/6m/1a, volatilidad anualizada ($\sigma \times \sqrt{252}$) y Máximo Drawdown histórico. |
+| `compare_stocks` | `tickers: list[str] \| str`, `period: str = '1y'` | `dict` | Análisis cruzado y ordenamiento comparativo por rendimiento acumulado, volatilidad, drawdown y P/E ratio entre múltiples activos. |
+| `get_historical_candles` | `ticker: str`, `period: str = '1mo'`, `interval: str = '1d'`, `limit: int = 30` | `dict` | Serie de velas japonesas OHLCV (Apertura, Máximo, Mínimo, Cierre, Volumen) con cambio porcentual por barra. |
+| `forecast_stock_prices` | `ticker: str`, `horizon: int = 30`, `model: str = 'auto'`, `period: str = '2y'`, `include_daily_values: bool = False` | `dict` | Pronóstico de cierre con intervalo de confianza al 95% (ARIMA/ETS), backtest vs. benchmark ingenuo y enlace a gráfico interactivo HTML. |
+| `list_colombian_stocks_catalog` | `sector: str \| None = None` | `dict` | Catálogo clasificado de emisores y ETFs de la Bolsa de Valores de Colombia (BVC), con ticker de Yahoo Finance (`.CL`), sector y tipo. |
+| `get_colombian_stock_analysis` | `ticker: str`, `period: str = '1y'` | `dict` | Análisis integral unificado de un emisor de la BVC: cotización en COP y USD (usando TRM oficial), indicadores técnicos, riesgo y fundamentales. |
+| `get_colombian_trm` | *(sin parámetros)* | `dict` | Consulta de la Tasa Representativa del Mercado (TRM) oficial vigente en Colombia desde la API REST de Datos Abiertos (`datos.gov.co`). |
+| `convert_usd_to_cop` | `usd_amount: float` | `dict` | Conversión aritmética exacta de dólares estadounidenses a pesos colombianos empleando la TRM oficial del día. |
+| `get_stock_events_and_news` | `ticker: str`, `limit: int = 8` | `dict` | Calendario de balances, historial de EPS, dividendos y noticias recientes con clasificación de sentimiento y correlación de impacto en volumen/precio. |
+| `get_international_stock_price` | `ticker: str` | `dict` | Alias retrocompatible que redirige la invocación internamente a `get_stock_quote`. |
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 2.4. Fuentes de Datos e Integraciones
+<a id="24-fuentes-de-datos-e-integraciones"></a>
+- **Yahoo Finance (`yfinance`):** Provisión de cotizaciones en tiempo real, histórico de precios ajustados, libros contables, ratios y noticias.
+- **Datos Abiertos Colombia (`datos.gov.co`):** Endpoint Socrata oficial del Estado colombiano para la obtención de la TRM legal vigente, garantizando tasas cambiarias fidedignas.
+- **Mecanismos de Caché y Resiliencia:** Cacheo automático de consultas repetitivas (15 minutos) y resolución de fallos temporales mediante inspección secundaria de series históricas cuando los metadatos de perfil sufren rate-limiting.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 2.5. Modos de Ejecución e Interfaces
+<a id="25-modos-de-ejecución-e-interfaces"></a>
+
+StockWise provee múltiples puntos de entrada según la necesidad de uso:
+
+1. **Protocolo MCP (Servidor):** Transporte estándar `stdio` para comunicación entre procesos con clientes de IA.
+2. **Aplicación Web (Streamlit):** Panel interactivo con selector de mercados, gráficos interactivos con Plotly, tabs temáticos (Resumen, Técnico, Riesgo, Fundamental, Pronóstico, Noticias, Comparador) y modo responsivo.
+3. **Consola / CLI:** Puntos de entrada instalables (`stockwise-mcp`, `stockwise-web`) o ejecución modular con `python -m`.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+## 3. Instalación y Puesta en Marcha
+
+<a id="3-instalación-y-puesta-en-marcha"></a>
+
+### 3.1. Requisitos Previos del Sistema
+<a id="31-requisitos-previos-del-sistema"></a>
+- **Python:** Versión `3.11` o superior (compatible con Python 3.11, 3.12, 3.13 y 3.14).
+- **Gestor de paquetes:** `pip`, `uv` o el gestor de dependencias de tu preferencia.
+- **Sistema Operativo:** Totalmente multiplataforma (Linux, macOS, Windows).
+- **Conexión a Internet:** Requerida para consultar los datos de Yahoo Finance y la API de la TRM.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 3.2. Configuración del Entorno Virtual
+<a id="32-configuración-del-entorno-virtual"></a>
+
+Se recomienda aislar las dependencias utilizando un entorno virtual en la raíz del proyecto:
+
+**En Linux / macOS:**
 ```bash
+python3 -m venv .venv
 source .venv/bin/activate
-streamlit run app.py        # abre http://localhost:8501
 ```
 
-Elige el mercado (Colombia / EE. UU. / otro) y la acción en la barra lateral; la app muestra pestañas de
-**Resumen**, **Técnico** (velas con marcadores de balances/noticias, SMA, Bollinger, RSI, MACD), **Riesgo** (drawdown, distribución de retornos),
-**Fundamental**, **Pronóstico** (ARIMA/ETS con backtest), **Eventos y Noticias** (calendario de balances, dividendos, noticias clasificadas por sentimiento e impacto en volumen) y **Comparar** (rendimiento base 100 y correlación).
-Reutiliza la misma lógica que el servidor MCP; las consultas a Yahoo se cachean 15 minutos.
+**En Windows (PowerShell / CMD):**
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+# o en CMD:
+# .venv\Scripts\activate.bat
+```
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
 
 ---
 
-## 🚀 Instalación y Ejecución
+### 3.3. Instalación de Dependencias
+<a id="33-instalación-de-dependencias"></a>
 
-### 1. Activar el entorno virtual
+Instala el paquete en modo editable junto con los componentes opcionales deseados:
+
 ```bash
-source .venv/bin/activate
+# Instalación base + interfaz MCP + interfaz web
+pip install -e ".[mcp,web]"
+
+# Si vas a realizar desarrollo y pruebas, incluye el grupo dev:
+pip install -e ".[mcp,web]"
+pip install pytest pytest-cov ruff mypy import-linter
 ```
 
-### 2. Probar el servidor directamente
-```bash
-python server.py
-# o también vía módulo:
-python -m stockwise.interfaces.mcp
-# o con el comando CLI registrado:
-stockwise-mcp
-```
+> **Alternativa con `requirements.txt`:**
+> ```bash
+> pip install -r requirements.txt
+> ```
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
 
 ---
 
-## ⚙️ Configuración en Clientes MCP
+## 4. Configuración Agnóstica de Clientes y Plataformas
 
-### Configuración en Claude Desktop, Cursor o Antigravity (`mcp_config.json`)
+<a id="4-configuración-agnóstica-de-clientes-y-plataformas"></a>
+
+### 4.1. Estándar MCP y Compatibilidad Universal
+<a id="41-estándar-mcp-y-compatibilidad-universal"></a>
+StockWise se apega estrictamente a la especificación oficial de **Model Context Protocol (MCP)**. Esto significa que **no está atado a ningún editor de código, IDE o plataforma específica**.
+
+Cualquier software que soporte clientes MCP puede comunicarse con StockWise sin requerir adaptaciones de código. Algunos ejemplos de herramientas y entornos compatibles incluyen:
+- **Asistentes de Escritorio:** Claude Desktop, clientes de chat locales o plataformas basadas en agentes.
+- **Entornos de Desarrollo y Editores:** Cursor, Antigravity, VS Code (mediante extensiones como Cline, Roo Code, Continue), JetBrains IDEs / PyCharm (con plugins MCP), Windsurf, Zed, entre otros.
+- **Herramientas de Consola y Orquestadores:** Frameworks de agentes autónomos, scripts de automatización o terminales interactivas.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 4.2. Plantilla de Configuración Estándar (`mcpServers`)
+<a id="42-plantilla-de-configuración-estándar-mcpservers"></a>
+
+El estándar MCP define un bloque de configuración en formato JSON (usualmente denominado `mcpServers`). Este bloque puede ser pegado en el archivo de ajustes de cualquier cliente compatible (por ejemplo: `mcp_config.json`, `claude_desktop_config.json`, o la sección de configuración MCP de tu IDE):
 
 ```json
 {
   "mcpServers": {
     "stock_analyzer": {
-      "command": "/home/robarias/Documents/FreeTime/mcp_stock/.venv/bin/python",
+      "command": "/RUTA/A/TU/ENTORNO/bin/python",
       "args": [
         "-m",
         "stockwise.interfaces.mcp"
       ],
       "env": {
-        "PYTHONPATH": "/home/robarias/Documents/FreeTime/mcp_stock/src"
+        "PYTHONPATH": "/RUTA/AL/PROYECTO/src"
       }
     }
   }
 }
 ```
 
+#### Descripción de los campos:
+- **`command`**: La ruta absoluta al ejecutable del intérprete de Python dentro del entorno virtual del proyecto (ej: `/home/usuario/mcp_stock/.venv/bin/python` en Linux/macOS o `C:\\proyectos\\mcp_stock\\.venv\\Scripts\\python.exe` en Windows). Si el entorno está en el PATH global, también puede usarse simplemente `"python"`.
+- **`args`**: Los argumentos de ejecución. Se recomienda `["-m", "stockwise.interfaces.mcp"]` o `["/RUTA/AL/PROYECTO/server.py"]`.
+- **`env`**: Variables de entorno opcionales. Se sugiere definir `"PYTHONPATH"` apuntando a la carpeta `src` de la instalación para asegurar la resolución de módulos.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
 ---
 
-## 💬 Ejemplos de Preguntas que puede responder tu Asistente IA
+### 4.3. Guía de Adaptación a Cualquier Entorno
+<a id="43-guía-de-adaptación-a-cualquier-entorno"></a>
 
-1. *"¿Cuál es la situación técnica de NVDA? ¿El RSI o el MACD muestran señales de sobrecompra?"*
-2. *"Compara el rendimiento y riesgo en el último año de AAPL, MSFT y GOOGL."*
-3. *"Analiza los fundamentales de Tesla (TSLA): ¿cuál es su P/E y su margen neto actual?"*
-4. *"Analiza Ecopetrol y compárala con ISA y PFCIBEST."*
-5. *"Pronostica ISA a 60 ruedas y muéstrame el gráfico."*
-6. *"Si una acción de Amazon cuesta X dólares, ¿cuánto equivale en pesos colombianos con la TRM de hoy?"*
+Para integrar StockWise con tu herramienta favorita sin fricción, sigue estos tres pasos generales:
+
+1. **Localiza el archivo de configuración de tu cliente:**
+   - La mayoría de clientes MCP tienen una opción en su menú de ajustes denominada *"MCP Servers"*, *"External Tools"* o un botón para *"Abrir configuración JSON"*.
+2. **Reemplaza las rutas relativas por rutas absolutas:**
+   - Para evitar problemas cuando el cliente inicie el proceso desde otro directorio de trabajo, utiliza siempre rutas absolutas en `command`, `args` y `PYTHONPATH`.
+3. **Reinicia la sesión o recarga el cliente:**
+   - Una vez guardado el JSON, reinicia el cliente. Las 12 herramientas de StockWise aparecerán disponibles de forma instantánea para tu modelo de IA.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+## 5. Calidad de Código, Pruebas y Validación
+
+<a id="5-calidad-de-código-pruebas-y-validación"></a>
+
+El repositorio cuenta con una batería completa de pruebas unitarias, de contrato y validación arquitectónica:
+
+```bash
+# 1. Ejecutar las pruebas unitarias (excluyen consultas de red por defecto)
+pytest
+
+# 2. Ejecutar incluyendo pruebas de red en vivo (Yahoo Finance y API TRM)
+pytest -m network
+
+# 3. Verificación de arquitectura y contratos de capas
+lint-imports
+
+# 4. Análisis estático y formateo con Ruff
+ruff check .
+ruff format --check .
+
+# 5. Verificación estricta de tipos con Mypy
+mypy
+```
+
+### Inspección Rápida de Herramientas
+Puedes verificar el funcionamiento de cualquier herramienta directamente desde la terminal con `fastmcp`:
+
+```bash
+# Probar una herramienta puntual enviando parámetros en JSON
+fastmcp call server.py get_stock_quote '{"ticker": "AAPL"}'
+
+# Abrir el inspector gráfico en el navegador web
+fastmcp dev inspector server.py
+```
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+## 6. Estructura del Repositorio
+
+<a id="6-estructura-del-repositorio"></a>
+
+```text
+mcp_stock/
+├── app.py                     # Punto de entrada para la aplicación web Streamlit
+├── server.py                  # Shim ejecutable del servidor MCP FastMCP
+├── pyproject.toml             # Metadatos del proyecto, scripts, dependencias y reglas de linting
+├── requirements.txt           # Lista de dependencias en formato pip estándar
+├── charts/                    # Directorio de salida de gráficos interactivos HTML (Plotly)
+├── docs/                      # Guías extendidas de uso y documentación de apoyo
+├── src/
+│   └── stockwise/
+│       ├── analytics/         # Módulos cuantitativos: indicadores, riesgo, forecasting, eventos
+│       ├── data/              # Conectores a Yahoo Finance y API de Datos Abiertos
+│       ├── domain/            # Catálogos de acciones BVC, modelos y resolución de tickers
+│       ├── interfaces/        # Servidor MCP, CLI y vistas de la aplicación web
+│       ├── services/          # Orquestación de lógica de negocio y análisis combinado
+│       └── viz/               # Constructores de gráficos Plotly (velas, series, comparativas)
+└── tests/                     # Suite de pruebas unitarias, de integración y de arquitectura
+```
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+## 7. Licencia
+
+<a id="7-licencia"></a>
+
+Este proyecto está distribuido bajo los términos de la **Licencia MIT**. Consulta el archivo de licencia para mayores detalles.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
