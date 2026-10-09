@@ -227,6 +227,20 @@ learning_mode = st.sidebar.toggle(
     help="Activa explicaciones sencillas, reglas de oro y guías prácticas para principiantes en cada métrica.",
 )
 
+st.sidebar.divider()
+st.sidebar.warning(
+    "⚖️ **Aviso Importante:**\n\n"
+    "Herramienta exclusivamente analítica y educativa. "
+    "**No constituye recomendación de inversión** ni asesoría financiera.",
+    icon="⚠️",
+)
+with st.sidebar.expander("Ver descargo completo", expanded=False):
+    st.caption(
+        "StockWise no formula sugerencias de compra o venta de activos ni gestiona patrimonio. "
+        "Las métricas, indicadores y pronósticos estadísticos son herramientas de apoyo para el análisis propio. "
+        "Cada usuario asume la responsabilidad exclusiva de sus decisiones de inversión."
+    )
+
 # ---------------------------------------------------------------------------
 # Datos base
 # ---------------------------------------------------------------------------
@@ -670,3 +684,14 @@ with tabs[5]:
 
     if learning_mode:
         render_guide("comparison")
+
+# ---------------------------------------------------------------------------
+# Pie de página global (Descargo de Responsabilidad)
+# ---------------------------------------------------------------------------
+st.divider()
+st.caption(
+    "⚖️ **Descargo de Responsabilidad:** La información y herramientas provistas en StockWise tienen carácter "
+    "estrictamente educativo, analítico y de investigación. En ningún caso constituyen asesoramiento financiero, "
+    "recomendación de compra/venta de activos ni aval crediticio. Los rendimientos pasados y modelos predictivos "
+    "no garantizan resultados futuros. Cada usuario asume la responsabilidad exclusiva de sus decisiones de inversión."
+)
