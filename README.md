@@ -16,9 +16,28 @@ license: mit
 
 ---
 
+<a id="aviso-legal-y-descargo-de-responsabilidad"></a>
+<a id="17-descargo-de-responsabilidad-disclaimer-financiero"></a>
+> [!WARNING]
+> **Aviso Legal y Descargo de Responsabilidad (Disclaimer Financiero):**
+> 
+> **StockWise es exclusivamente una herramienta de carácter analítico, educativo y de investigación.** 
+> 
+> Su propósito es facilitar el acceso, procesamiento y visualización de datos bursátiles y financieros para que cada persona pueda realizar sus propios análisis y contar con mejores insumos de información. 
+> 
+> **Tenga en cuenta que:**
+> 1. **No constituye asesoramiento financiero:** La información, métricas, indicadores, análisis técnicos, pronósticos estadísticos o respuestas generadas por los modelos de IA en **ningún caso** constituyen asesoramiento financiero, recomendación de inversión, aval crediticio ni sugerencia de compra o venta de ningún activo, acción, divisa o instrumento bursátil.
+> 2. **Riesgo inherente de mercado:** Los rendimientos pasados ni las proyecciones estadísticas garantizan resultados futuros. Las inversiones en mercados financieros conllevan riesgo inherente de pérdida de capital.
+> 3. **Exoneración de responsabilidad:** Los autores, mantenedores y contribuidores del proyecto **no asumen responsabilidad alguna** por las decisiones de inversión, pérdidas económicas o ganancias obtenidas por los usuarios.
+> 
+> **Cada usuario es enteramente responsable de sus propias decisiones patrimoniales.** Si requieres asesoría profesional adaptada a tu perfil de riesgo y situación patrimonial particular, consulta a un asesor financiero debidamente certificado y registrado ante los entes reguladores de tu país.
+
+---
+
 <a id="tabla-de-contenido"></a>
 ## 📑 Tabla de Contenido
 
+- [⚠️ Aviso Legal y Descargo de Responsabilidad](#aviso-legal-y-descargo-de-responsabilidad)
 - [1. Sección No Técnica: Visión General y Propósito](#1-sección-no-técnica-visión-general-y-propósito)
   - [1.1. ¿Qué es StockWise?](#11-qué-es-stockwise)
   - [1.2. ¿Qué problemas resuelve?](#12-qué-problemas-resuelve)
@@ -26,7 +45,6 @@ license: mit
   - [1.4. ¿Cómo funciona en la práctica?](#14-cómo-funciona-en-la-práctica)
   - [1.5. Mercados y activos soportados](#15-mercados-y-activos-soportados)
   - [1.6. Ejemplos de uso en lenguaje cotidiano](#16-ejemplos-de-uso-en-lenguaje-cotidiano)
-  - [1.7. Descargo de Responsabilidad (Disclaimer Financiero)](#17-descargo-de-responsabilidad-disclaimer-financiero)
 - [2. Sección Técnica: Arquitectura y Especificación](#2-sección-técnica-arquitectura-y-especificación)
   - [2.1. Arquitectura de Software y Diseño en Capas](#21-arquitectura-de-software-y-diseño-en-capas)
   - [2.2. Motor Cuantitativo y Modelos Analíticos](#22-motor-cuantitativo-y-modelos-analíticos)
@@ -37,13 +55,17 @@ license: mit
   - [3.1. Requisitos Previos del Sistema](#31-requisitos-previos-del-sistema)
   - [3.2. Configuración del Entorno Virtual](#32-configuración-del-entorno-virtual)
   - [3.3. Instalación de Dependencias](#33-instalación-de-dependencias)
-- [4. Configuración Agnóstica de Clientes y Plataformas](#4-configuración-agnóstica-de-clientes-y-plataformas)
-  - [4.1. Estándar MCP y Compatibilidad Universal](#41-estándar-mcp-y-compatibilidad-universal)
-  - [4.2. Plantilla de Configuración Estándar (`mcpServers`)](#42-plantilla-de-configuración-estándar-mcpservers)
-  - [4.3. Guía de Adaptación a Cualquier Entorno](#43-guía-de-adaptación-a-cualquier-entorno)
-- [5. Calidad de Código, Pruebas y Validación](#5-calidad-de-código-pruebas-y-validación)
-- [6. Estructura del Repositorio](#6-estructura-del-repositorio)
-- [7. Licencia](#7-licencia)
+- [4. Despliegue de la Aplicación Web y Estrategias de Migración](#4-despliegue-de-la-aplicación-web-y-estrategias-de-migración)
+  - [4.1. Despliegue Local de Streamlit](#41-despliegue-local-de-streamlit)
+  - [4.2. Despliegue en Streamlit Community Cloud](#42-despliegue-en-streamlit-community-cloud)
+  - [4.3. Estrategias de Migración a Otras Plataformas](#43-estrategias-de-migración-a-otras-plataformas)
+- [5. Configuración Agnóstica de Clientes y Plataformas](#5-configuración-agnóstica-de-clientes-y-plataformas)
+  - [5.1. Estándar MCP y Compatibilidad Universal](#51-estándar-mcp-y-compatibilidad-universal)
+  - [5.2. Plantilla de Configuración Estándar (`mcpServers`)](#52-plantilla-de-configuración-estándar-mcpservers)
+  - [5.3. Guía de Adaptación a Cualquier Entorno](#53-guía-de-adaptación-a-cualquier-entorno)
+- [6. Calidad de Código, Pruebas y Validación](#6-calidad-de-código-pruebas-y-validación)
+- [7. Estructura del Repositorio](#7-estructura-del-repositorio)
+- [8. Licencia](#8-licencia)
 
 ---
 
@@ -112,27 +134,6 @@ Existen dos formas principales de utilizar StockWise:
 - *"¿Cómo están los números de Ecopetrol y cuánto vale una acción en dólares usando la TRM oficial de hoy?"*
 - *"Genera un pronóstico estadístico de precio para ISA a 30 ruedas bursátiles y muéstrame el gráfico interactivo."*
 - *"¿Cuáles son las últimas noticias de Tesla y qué impacto han tenido en su volumen de negociación?"*
-
-[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
-
----
-
-### 1.7. Descargo de Responsabilidad (Disclaimer Financiero)
-<a id="17-descargo-de-responsabilidad-disclaimer-financiero"></a>
-
-> [!WARNING]
-> **Aviso Legal y Descargo de Responsabilidad (Disclaimer):**
-> 
-> **StockWise es exclusivamente una herramienta de carácter analítico, educativo y de investigación.** 
-> 
-> Su propósito es facilitar el acceso, procesamiento y visualización de datos bursátiles y financieros para que cada persona pueda realizar sus propios análisis y contar con mejores insumos de información. 
-> 
-> En **ningún caso**:
-> 1. La información, métricas, indicadores, análisis técnicos, pronósticos estadísticos o respuestas generadas por los modelos de IA constituyen **asesoramiento financiero, recomendación de inversión, aval crediticio ni sugerencia de compra o venta de ningún activo, acción, divisa o instrumento bursátil**.
-> 2. Los rendimientos pasados ni las proyecciones estadísticas garantizan resultados futuros. Las inversiones en mercados financieros conllevan riesgo inherente de pérdida de capital.
-> 3. Los autores, mantenedores y contribuidores del proyecto NO asumen responsabilidad alguna por las decisiones de inversión, pérdidas económicas o ganancias obtenidas por los usuarios.
-> 
-> **Cada usuario es enteramente responsable de sus propias decisiones patrimoniales.** Si requieres asesoría profesional adaptada a tu perfil de riesgo y situación patrimonial particular, consulta a un asesor financiero debidamente certificado y registrado ante los entes reguladores de tu país.
 
 [⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
 
@@ -314,11 +315,278 @@ pip install pytest pytest-cov ruff mypy import-linter
 
 ---
 
-## 4. Configuración Agnóstica de Clientes y Plataformas
+## 4. Despliegue de la Aplicación Web y Estrategias de Migración
 
+<a id="4-despliegue-de-la-aplicación-web-y-estrategias-de-migración"></a>
+
+StockWise incluye una interfaz gráfica moderna desarrollada sobre **Streamlit** que permite explorar de forma visual interactiva cotizaciones, gráficos de velas, métricas fundamentales, semáforos técnicos, pronósticos estadísticos con intervalos de confianza y noticias del mercado.
+
+Esta sección detalla cómo ejecutar la aplicación en entornos locales, cómo desplegarla en la nube pública de **Streamlit Community Cloud**, y cómo desacoplar o migrar sus capacidades a **otras plataformas y tecnologías** (FastAPI, Docker, Frontends SPA modernos, Hugging Face, etc.).
+
+---
+
+### 4.1. Despliegue Local de Streamlit
+<a id="41-despliegue-local-de-streamlit"></a>
+
+Para ejecutar la aplicación web en tu máquina de desarrollo o servidor local, asegúrate de haber activado el entorno virtual (`source .venv/bin/activate` en Linux/macOS o `.venv\Scripts\Activate.ps1` en Windows) y de contar con las dependencias instaladas (`pip install -e ".[web]"` o `pip install -r requirements.txt`).
+
+Existen diversas alternativas de ejecución según tus preferencias de flujo de trabajo:
+
+#### Alternativa A: Mediante el comando CLI oficial (Recomendado)
+El paquete registra un ejecutable de consola configurado en `pyproject.toml`:
+```bash
+stockwise-web
+```
+
+#### Alternativa B: Mediante Streamlit apuntando al shim raíz (`app.py`)
+El archivo `app.py` en la raíz del repositorio actúa como un cargador (*shim*) de compatibilidad que añade automáticamente la carpeta `src/` al `sys.path` de Python y limpia la memoria caché de módulos de StockWise en cada recarga (*hot reload*):
+```bash
+streamlit run app.py
+```
+
+#### Alternativa C: Apuntando directamente al módulo de interfaz
+```bash
+streamlit run src/stockwise/interfaces/web/app.py
+```
+
+#### Alternativa D: Ejecución como módulo de Python
+```bash
+python -m streamlit run app.py
+```
+
+#### Banderas y Opciones Útiles de Ejecución:
+- **Cambiar el puerto de escucha:**
+  ```bash
+  streamlit run app.py --server.port 8501
+  ```
+- **Modo sin navegador automático (ideal para entornos remotos, SSH o WSL):**
+  ```bash
+  streamlit run app.py --server.headless true
+  ```
+- **Habilitar acceso desde cualquier interfaz de red (LAN o dentro de contenedores):**
+  ```bash
+  streamlit run app.py --server.address 0.0.0.0
+  ```
+- **Variables de Entorno para Personalización:**
+  - `STOCKWISE_CHARTS_DIR`: Directorio destino donde se exportan los gráficos HTML autónomos (por defecto: `charts/`).
+  - `STOCKWISE_CACHE_TTL`: Tiempo de caducidad en segundos de la caché en memoria de consultas (por defecto: `900` = 15 minutos).
+
+Una vez iniciada, abre tu navegador web en `http://localhost:8501` (o la dirección IP reportada en la terminal).
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 4.2. Despliegue en Streamlit Community Cloud
+<a id="42-despliegue-en-streamlit-community-cloud"></a>
+
+[Streamlit Community Cloud](https://streamlit.io/cloud) es la plataforma oficial gratuita de Snowflake para publicar, alojar y compartir aplicaciones de Streamlit de forma directa y continua desde repositorios de GitHub.
+
+#### 1. Preparación del Repositorio
+StockWise ya está preconfigurado de fábrica para Streamlit Cloud:
+- **Punto de entrada (`app.py`)**: Ubicado en la raíz del proyecto, inicializa las rutas y el entorno.
+- **Dependencias (`requirements.txt`)**: Streamlit Cloud detecta e instala este archivo de forma desatendida.
+- **Control de versiones**: Asegúrate de haber subido tu código a tu cuenta de GitHub (en un repositorio público o privado).
+
+#### 2. Paso a Paso para el Despliegue
+1. **Acceder a la plataforma:** Ingresa a [share.streamlit.io](https://share.streamlit.io/) e inicia sesión utilizando tu cuenta de GitHub.
+2. **Crear una nueva aplicación:** En el panel de control principal, haz clic en el botón **"New app"** (o *"Create app"*).
+3. **Completar los parámetros del repositorio:**
+   - **Repository:** Selecciona tu repositorio (por ejemplo, `tu-usuario/mcp_stock`).
+   - **Branch:** Selecciona la rama principal (generalmente `main`).
+   - **Main file path:** Escribe `app.py`.
+   - **App URL (opcional):** Puedes personalizar el subdominio gratuito de tu aplicación (por ejemplo: `stockwise-app.streamlit.app`).
+4. **Configuración Avanzada ("Advanced settings"):**
+   - **Python Version:** Selecciona **`3.11`** o **`3.12`** (requerido para compatibilidad con las tipificaciones modernas del proyecto).
+   - **Secrets (`st.secrets`):** Si tu aplicación se conecta a través de proxies corporativos o deseas configurar parámetros personalizados, ingresa el bloque TOML respectivo:
+     ```toml
+     # Configuración opcional de proxies (StockWise los detecta automáticamente en st.secrets)
+     # HTTP_PROXY = "http://usuario:pass@proxy.corp.com:8080"
+     # HTTPS_PROXY = "http://usuario:pass@proxy.corp.com:8080"
+
+     # Variables de entorno opcionales
+     STOCKWISE_CACHE_TTL = "900"
+     ```
+5. **Lanzar el despliegue:** Haz clic en el botón **"Deploy!"**.
+6. **Monitoreo y Verificación:**
+   - Streamlit aprovisionará el entorno en la nube e instalará las dependencias. Puedes observar el log de construcción en tiempo real en la pestaña *"Manage app"* en la esquina inferior derecha.
+   - En cuestión de 2 a 3 minutos, la aplicación estará disponible públicamente bajo la URL asignada.
+
+#### 3. Despliegue Continuo (CI/CD) y Mantenimiento
+- **Actualización Automática:** Cada vez que realices un `git push` a la rama configurada (`main`), Streamlit Cloud detectará los cambios y actualizará la aplicación automáticamente sin requerir intervención manual.
+- **Reinicio:** En caso de necesitar purgar la memoria o reiniciar el servidor, puedes acceder a *Manage app -> Menú de 3 puntos (...) -> Reboot app*.
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+### 4.3. Estrategias de Migración a Otras Plataformas
+<a id="43-estrategias-de-migración-a-otras-plataformas"></a>
+
+Aunque Streamlit es excelente para prototipado rápido y paneles de datos, muchas organizaciones y desarrolladores necesitan migrar o extender sus capacidades hacia arquitecturas empresariales: APIs REST de alto tráfico, microservicios serverless, frontends SPA desacoplados (React, Vue, Next.js), o contenedores orquestados en Kubernetes.
+
+#### 1. ¿Por qué es trivial migrar en StockWise? (Diseño Desacoplado)
+StockWise fue construido bajo principios de **Clean Layered Architecture (Arquitectura Limpia en Capas)**:
+- **Ninguna dependencia de interfaz en la lógica de negocio:** Todos los cálculos matemáticos (`stockwise.analytics`), modelos predictivos ARIMA/ETS (`stockwise.analytics.forecasting`), métricas de riesgo (`stockwise.analytics.risk`), conectores de mercado (`stockwise.data`) y resolutores de activos (`stockwise.domain`) son funciones y clases puras de Python.
+- **Gráficos agnósticos y serializables:** El módulo `stockwise.viz` construye figuras nativas de **Plotly** (`go.Figure`). Estas figuras pueden exportarse como JSON puro (`fig.to_json()`), diccionarios serializables (`fig.to_dict()`), archivos HTML interactivos autónomos o imágenes estáticas (PNG, SVG, PDF).
+- **Streamlit es únicamente una capa de presentación:** `stockwise.interfaces.web` consume la lógica de la misma manera en que lo hace el servidor MCP (`stockwise.interfaces.mcp`). Cambiar de interfaz no exige alterar una sola línea del motor cuantitativo.
+
+---
+
+#### 2. Migración a API REST con FastAPI (Microservicio Analítico)
+Si deseas servir los datos analíticos de StockWise como un backend headless para aplicaciones móviles, plataformas de trading, o sistemas de terceros:
+
+1. **Instalar dependencias de API:**
+   El proyecto ya incluye el grupo opcional `api` en `pyproject.toml`:
+   ```bash
+   pip install -e ".[api]"
+   # O directamente: pip install fastapi uvicorn
+   ```
+
+2. **Ejemplo de router / controlador FastAPI (`src/stockwise/interfaces/api/app.py`):**
+   ```python
+   from fastapi import FastAPI, HTTPException, Query
+   from stockwise.analytics.indicators import calculate_technical_indicators
+   from stockwise.analytics.risk import calculate_risk_metrics
+   from stockwise.data.yahoo import fetch_ticker_history
+   from stockwise.domain.markets import resolve_ticker
+
+   app = FastAPI(title="StockWise API", version="1.0.0", description="API de análisis cuantitativo bursátil")
+
+   @app.get("/api/v1/stocks/{ticker}/technical")
+   def get_technical_analysis(ticker: str, period: str = Query("1y", regex="^(1mo|3mo|6mo|1y|2y|5y)$")):
+       resolved = resolve_ticker(ticker)
+       df = fetch_ticker_history(resolved.yahoo_ticker, period=period)
+       if df.empty:
+           raise HTTPException(status_code=404, detail=f"No se encontraron datos para el activo {ticker}")
+       
+       indicators = calculate_technical_indicators(df)
+       risk = calculate_risk_metrics(df["Close"])
+       
+       return {
+           "symbol": ticker,
+           "yahoo_ticker": resolved.yahoo_ticker,
+           "market": resolved.market.value,
+           "technical": indicators,
+           "risk": risk,
+       }
+   ```
+
+3. **Ejecutar el servidor ASGI:**
+   ```bash
+   uvicorn stockwise.interfaces.api.app:app --host 0.0.0.0 --port 8000 --reload
+   ```
+
+4. **Plataformas de Despliegue para la API:**
+   - **Serverless:** AWS Lambda + API Gateway (usando el adaptador `Mangum`), Google Cloud Functions.
+   - **PaaS Serverless de Contenedores:** **Google Cloud Run**, **AWS ECS/Fargate**, **Azure Container Apps**.
+   - **Plataformas PaaS Ágiles:** **Render**, **Railway**, **Fly.io**, **DigitalOcean App Platform**.
+
+---
+
+#### 3. Migración a Frontends Modernos (React, Next.js, Vue, Svelte)
+Para construir portales web comerciales, sistemas con diseño corporativo a medida o aplicaciones web progresivas (PWA):
+
+- **Arquitectura:**
+  - El frontend desacoplado (React/Next.js) se comunica vía HTTP/JSON con la API REST de FastAPI descrita en el punto anterior.
+- **Renderizado de Gráficos Financieros:**
+  - **Opción A (Plotly.js):** Serializa las figuras generadas por `stockwise.viz` con `fig.to_json()` y consúmelas directamente en React usando `react-plotly.js`. Mantendrás las mismas capacidades de zoom, hover y tooltips.
+  - **Opción B (TradingView Lightweight Charts):** Utiliza la biblioteca oficial de TradingView (`lightweight-charts`), el estándar de la industria bursátil. Aliméntala directamente con el JSON devuelto por la herramienta `get_historical_candles` de StockWise para obtener gráficos de velas y volumen ultra-rápidos en HTML5 Canvas.
+- **Plataformas de Alojamiento del Frontend:**
+  - **Vercel**, **Netlify**, **Cloudflare Pages**, **AWS Amplify** o **GitHub Pages**.
+
+---
+
+#### 4. Contenerización Universal con Docker (Agnóstica a cualquier Nube)
+Docker permite empaquetar toda la solución (ya sea la app Streamlit, la API FastAPI o el servidor MCP) en una imagen inmutable lista para cualquier orquestador (Kubernetes, Docker Swarm, Docker Compose o servicios de contenedores gestionados).
+
+**Ejemplo de `Dockerfile` optimizado para producción:**
+```dockerfile
+# Imagen base ligera con Python 3.11
+FROM python:3.11-slim as base
+
+# Evitar escritura de bytecode y habilitar buffer inmediato de logs
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Instalar utilidades de sistema necesarias
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar manifiestos e instalar dependencias
+COPY pyproject.toml requirements.txt ./
+RUN pip install -r requirements.txt
+
+# Copiar código fuente
+COPY src/ ./src/
+COPY app.py server.py ./
+
+# Instalar el paquete en modo editable local
+RUN pip install -e .
+
+# Exponer el puerto por defecto de la aplicación
+EXPOSE 8501
+
+# Comprobación de salud (Healthcheck)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+
+# Comando por defecto (Streamlit). Para FastAPI, reemplazar por uvicorn.
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+```
+
+**Comandos para compilar y ejecutar:**
+```bash
+# Construir la imagen Docker
+docker build -t stockwise:latest .
+
+# Ejecutar el contenedor mapeando el puerto 8501
+docker run -d --name stockwise-app -p 8501:8501 stockwise:latest
+
+# Inspeccionar logs de ejecución
+docker logs -f stockwise-app
+```
+
+---
+
+#### 5. Despliegue en Otras Plataformas de Ciencia de Datos y Machine Learning
+- **Hugging Face Spaces:**
+  - El repositorio ya contiene la cabecera YAML en el encabezado de este README (`sdk: streamlit`, `app_file: app.py`).
+  - Basta con crear un nuevo Space en Hugging Face y vincular el repositorio de GitHub para que la app quede en línea de forma gratuita.
+  - Para migrar a Docker en HF Spaces, solo cambia `sdk: streamlit` por `sdk: docker`.
+- **Gradio (`gradio`):**
+  - Si prefieres interfaces centradas en modelos de Machine Learning, agentes autónomos o chat conversacional integrado, puedes crear una interfaz con `gradio.Blocks` o `gradio.Interface` importando directamente las funciones de `stockwise.services`.
+- **Plotly Dash (`dash`):**
+  - Integración nativa e inmediata si tu empresa ya utiliza el ecosistema de Plotly Dash: las figuras de `stockwise.viz` se renderizan sin conversión mediante componentes `dcc.Graph(figure=fig)`.
+- **Reflex / Solara:**
+  - Frameworks reactivos modernos en Python puro que compilan a aplicaciones web reactivas completas de una sola página.
+
+---
+
+#### 6. Integración Headless: Automatización, Bots y Tareas Programadas
+No es obligatorio utilizar ninguna interfaz visual. StockWise puede funcionar en modo desatendido:
+- **Notebooks Interactivos (Jupyter / Google Colab):**
+  - Instala con `pip install -e .` y realiza análisis cuantitativo exploratorio directamente en celdas de Jupyter.
+- **Bots de Alertas Financieras (Telegram, Slack, Discord):**
+  - Crea scripts que evalúen condiciones de mercado en intervalos fijos (ejemplo: cuando el RSI de una acción de la BVC caiga por debajo de 30 o cuando ocurra un cruce alcista MACD) y envíen alertas automáticas adjuntando la gráfica exportada con `fig.write_image("alerta.png")`.
+- **Pipelines y Workers en la Nube (Cron / Celery / Temporal / Airflow / GitHub Actions):**
+  - Ejecución de diagnósticos diarios al cierre de rueda bursátil (4:00 PM EST / COT), persistiendo los análisis y pronósticos generados en bases de datos relacionales (PostgreSQL), NoSQL o buckets de almacenamiento (AWS S3, Google Cloud Storage).
+
+[⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
+
+---
+
+## 5. Configuración Agnóstica de Clientes y Plataformas
+
+<a id="5-configuración-agnóstica-de-clientes-y-plataformas"></a>
 <a id="4-configuración-agnóstica-de-clientes-y-plataformas"></a>
 
-### 4.1. Estándar MCP y Compatibilidad Universal
+### 5.1. Estándar MCP y Compatibilidad Universal
+<a id="51-estándar-mcp-y-compatibilidad-universal"></a>
 <a id="41-estándar-mcp-y-compatibilidad-universal"></a>
 StockWise se apega estrictamente a la especificación oficial de **Model Context Protocol (MCP)**. Esto significa que **no está atado a ningún editor de código, IDE o plataforma específica**.
 
@@ -331,7 +599,8 @@ Cualquier software que soporte clientes MCP puede comunicarse con StockWise sin 
 
 ---
 
-### 4.2. Plantilla de Configuración Estándar (`mcpServers`)
+### 5.2. Plantilla de Configuración Estándar (`mcpServers`)
+<a id="52-plantilla-de-configuración-estándar-mcpservers"></a>
 <a id="42-plantilla-de-configuración-estándar-mcpservers"></a>
 
 El estándar MCP define un bloque de configuración en formato JSON (usualmente denominado `mcpServers`). Este bloque puede ser pegado en el archivo de ajustes de cualquier cliente compatible (por ejemplo: `mcp_config.json`, `claude_desktop_config.json`, o la sección de configuración MCP de tu IDE):
@@ -362,7 +631,8 @@ El estándar MCP define un bloque de configuración en formato JSON (usualmente 
 
 ---
 
-### 4.3. Guía de Adaptación a Cualquier Entorno
+### 5.3. Guía de Adaptación a Cualquier Entorno
+<a id="53-guía-de-adaptación-a-cualquier-entorno"></a>
 <a id="43-guía-de-adaptación-a-cualquier-entorno"></a>
 
 Para integrar StockWise con tu herramienta favorita sin fricción, sigue estos tres pasos generales:
@@ -378,8 +648,9 @@ Para integrar StockWise con tu herramienta favorita sin fricción, sigue estos t
 
 ---
 
-## 5. Calidad de Código, Pruebas y Validación
+## 6. Calidad de Código, Pruebas y Validación
 
+<a id="6-calidad-de-código-pruebas-y-validación"></a>
 <a id="5-calidad-de-código-pruebas-y-validación"></a>
 
 El repositorio cuenta con una batería completa de pruebas unitarias, de contrato y validación arquitectónica:
@@ -417,8 +688,9 @@ fastmcp dev inspector server.py
 
 ---
 
-## 6. Estructura del Repositorio
+## 7. Estructura del Repositorio
 
+<a id="7-estructura-del-repositorio"></a>
 <a id="6-estructura-del-repositorio"></a>
 
 ```text
@@ -444,8 +716,9 @@ mcp_stock/
 
 ---
 
-## 7. Licencia
+## 8. Licencia
 
+<a id="8-licencia"></a>
 <a id="7-licencia"></a>
 
 Este proyecto está distribuido bajo los términos de la **Licencia MIT**. Consulta el archivo de licencia para mayores detalles.
