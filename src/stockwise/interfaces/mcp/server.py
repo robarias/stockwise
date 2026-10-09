@@ -244,8 +244,9 @@ def get_fundamental_analysis(ticker: str) -> dict[str, Any]:
 @mcp.tool()
 def get_risk_and_performance(ticker: str, period: str = "1y") -> dict[str, Any]:
     """
-    Calcula el rendimiento acumulado, desglose de retornos (1 semana, 1 mes, 3 meses, 6 meses, 1 año),
-    volatilidad anualizada y Máximo Drawdown (caída máxima histórica desde máximos).
+    Calcula el rendimiento acumulado, desglose de retornos periódicos, volatilidad histórica,
+    máximo drawdown, y modelado condicional GARCH con Value-at-Risk (VaR 95% y 99%),
+    Expected Shortfall (CVaR) y diagnóstico de régimen de volatilidad.
 
     Args:
         ticker: Símbolo bursátil (ej: 'SPY', 'QQQ', 'AAPL').
@@ -261,7 +262,8 @@ def get_risk_and_performance(ticker: str, period: str = "1y") -> dict[str, Any]:
     if hist.empty or len(hist) < 10:
         return {"error": f"Datos insuficientes para calcular métricas de riesgo para '{ticker_clean}'."}
 
-    risk_data = calculate_risk_metrics(hist)
+    raw_risk = calculate_risk_metrics(hist)
+    risk_data = {k: v for k, v in raw_risk.items() if not k.startswith("_")}
     risk_data["symbol"] = ticker_clean
     risk_data["period"] = period
     return risk_data
@@ -373,18 +375,23 @@ def get_historical_candles(ticker: str, period: str = "1mo", interval: str = "1d
 
 @mcp.tool()
 def forecast_stock_prices(ticker: str, horizon: int = 30, model: str = "auto", period: str = "2y",
-                          include_daily_values: bool = False) -> dict[str, Any]:
+                          include_daily_values: bool = False,
+                          support_price: float | None = None,
+                          resistance_price: float | None = None) -> dict[str, Any]:
     """
     Analiza el precio como serie temporal, pronostica el cierre con intervalo de confianza del 95%
-    (ARIMA o ETS), valida el modelo con un backtest contra el benchmark ingenuo y genera un
-    gráfico interactivo HTML. Funciona con acciones de EE. UU. y de Colombia ('.CL').
+    (ARIMA, ETS, Theta o Ensamble), valida el modelo con un backtest contra el benchmark ingenuo,
+    ejecuta una simulación Monte Carlo (GBM) para probabilidades de soporte/resistencia y genera
+    un gráfico interactivo HTML. Funciona con acciones de EE. UU. y de Colombia ('.CL').
 
     Args:
         ticker: Símbolo (ej: 'AAPL', 'ECOPETROL', 'ISA.CL').
         horizon: Ruedas bursátiles a pronosticar (1-252). Predeterminado 30.
-        model: 'auto' (elige por backtest), 'arima' o 'ets'.
+        model: 'auto' (elige por backtest), 'arima', 'ets', 'theta' o 'ensemble'.
         period: Historial para ajustar el modelo ('1y', '2y', '5y'). Predeterminado '2y'.
         include_daily_values: Si es True, incluye el pronóstico día a día en la respuesta.
+        support_price: Precio de soporte a evaluar con Monte Carlo (None = mínimo reciente).
+        resistance_price: Precio de resistencia a evaluar con Monte Carlo (None = máximo reciente).
     """
     sym = resolve_ticker(ticker)
     try:
@@ -395,7 +402,8 @@ def forecast_stock_prices(ticker: str, horizon: int = 30, model: str = "auto", p
         return {"error": f"No se obtuvieron datos históricos para '{sym}'."}
 
     try:
-        result = forecast_close(hist, horizon=horizon, model=model)
+        result = forecast_close(hist, horizon=horizon, model=model,
+                                support_price=support_price, resistance_price=resistance_price)
     except (ValueError, RuntimeError) as e:
         return {"error": str(e)}
 

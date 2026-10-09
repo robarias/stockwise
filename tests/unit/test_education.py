@@ -18,7 +18,7 @@ def test_metric_glossary_entries():
     assert "pe_ratio" in METRIC_GLOSSARY
     assert "rsi" in METRIC_GLOSSARY
     assert "volatility" in METRIC_GLOSSARY
-    for key, info in METRIC_GLOSSARY.items():
+    for info in METRIC_GLOSSARY.values():
         assert "title" in info
         assert "description" in info
         assert "rule_of_thumb" in info

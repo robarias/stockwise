@@ -9,6 +9,7 @@ description = "Análisis de acciones de EE. UU. y Colombia: técnico, riesgo, fu
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "arch>=8.0.0",
     "numpy>=1.26",
     "pandas>=2.0",
     "plotly>=5.18",

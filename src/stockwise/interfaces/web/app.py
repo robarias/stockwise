@@ -42,6 +42,7 @@ from stockwise.domain.markets import is_colombian_ticker, resolve_ticker
 from stockwise.interfaces.mcp import server  # TODO(fase 2): reemplazar por stockwise.services
 from stockwise.viz.comparison import build_comparison_figures
 from stockwise.viz.forecast import build_forecast_figure
+from stockwise.viz.risk import build_conditional_volatility_figure
 from stockwise.viz.technical import build_technical_figure
 
 st.set_page_config(page_title="StockWise", page_icon="📈", layout="wide")
@@ -101,8 +102,10 @@ def load_events_and_news(symbol: str) -> dict[str, Any]:
 
 
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
-def load_forecast(symbol: str, period: str, horizon: int, model: str):
-    return forecast_close(load_history(symbol, period), horizon=horizon, model=model)
+def load_forecast(symbol: str, period: str, horizon: int, model: str,
+                  support_price: float | None = None, resistance_price: float | None = None):
+    return forecast_close(load_history(symbol, period), horizon=horizon, model=model,
+                          support_price=support_price, resistance_price=resistance_price)
 
 
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
@@ -473,12 +476,49 @@ with tabs[2]:
         st.warning("Datos insuficientes para métricas de riesgo.")
     else:
         risk = calculate_risk_metrics(hist)
+        cond_risk = risk.get("conditional_risk")
+        garch_full = risk.get("_garch_full")
+
         vol_delta = interpret_volatility(risk["annualized_volatility_pct"]) if learning_mode else None
         dd_delta = interpret_drawdown(risk["max_drawdown_pct"]) if learning_mode else None
+
+        # Fila 1: Métricas de riesgo tradicionales
         c1, c2, c3 = st.columns(3)
         c1.metric("Retorno acumulado", f"{risk['cumulative_return_pct']:.2f}%", help=get_help("cumulative_return"))
-        c2.metric("Volatilidad anualizada", f"{risk['annualized_volatility_pct']:.2f}%", vol_delta, delta_color="off" if vol_delta else "normal", help=get_help("volatility"))
-        c3.metric("Máx. drawdown", f"{risk['max_drawdown_pct']:.2f}%", dd_delta, delta_color="off" if dd_delta else "normal", help=get_help("max_drawdown"))
+        c2.metric("Volatilidad histórica", f"{risk['annualized_volatility_pct']:.2f}% anual", vol_delta,
+                  delta_color="off" if vol_delta else "normal", help=get_help("volatility"))
+        c3.metric("Máx. drawdown", f"{risk['max_drawdown_pct']:.2f}%", dd_delta,
+                  delta_color="off" if dd_delta else "normal", help=get_help("max_drawdown"))
+
+        # Fila 2: Métricas dinámicas GARCH y VaR
+        if cond_risk:
+            var_m = cond_risk.get("var_metrics", {})
+            g1, g2, g3, g4 = st.columns(4)
+            current_vol = cond_risk["current_volatility_annualized_pct"]
+            hist_mean = cond_risk["historical_mean_volatility_annualized_pct"]
+            vol_diff = round(current_vol - hist_mean, 2)
+            g1.metric(
+                "Volatilidad actual (GARCH)",
+                f"{current_vol:.2f}%",
+                f"{vol_diff:+.2f}% vs media",
+                delta_color="inverse",
+                help=get_help("garch"),
+            )
+            g2.metric(
+                "Régimen de volatilidad",
+                cond_risk["volatility_regime"],
+                help=cond_risk.get("regime_description"),
+            )
+            g3.metric(
+                "VaR diario (95%)",
+                f"{var_m.get('var_95_1d_pct', 0):+.2f}%",
+                help=get_help("var_condicional"),
+            )
+            g4.metric(
+                "CVaR diario (Expected Shortfall)",
+                f"{var_m.get('cvar_95_1d_pct', 0):+.2f}%",
+                help=get_help("cvar_condicional"),
+            )
 
         close = hist["Close"].copy()
         close.index = close.index.tz_localize(None) if close.index.tz is not None else close.index
@@ -487,11 +527,53 @@ with tabs[2]:
 
         a, b = st.columns(2)
         fig_dd = go.Figure(go.Scatter(x=dd.index, y=dd.values, fill="tozeroy", line=dict(color="#ef5350")))
-        fig_dd.update_layout(title="Drawdown (%)", template="plotly_white", height=340)
+        fig_dd.update_layout(title="Drawdown (%)", template="plotly_white", height=320)
         a.plotly_chart(fig_dd, width="stretch")
         fig_h = go.Figure(go.Histogram(x=rets.values, nbinsx=50, marker_color="#1f77b4"))
-        fig_h.update_layout(title="Distribución de retornos diarios (%)", template="plotly_white", height=340)
+        fig_h.update_layout(title="Distribución de retornos diarios (%)", template="plotly_white", height=320)
         b.plotly_chart(fig_h, width="stretch")
+
+        # Gráfico dinámico de Volatilidad Condicional GARCH
+        if garch_full and "conditional_volatility_series" in garch_full:
+            fig_garch = build_conditional_volatility_figure(symbol, garch_full)
+            st.plotly_chart(fig_garch, width="stretch")
+
+            with st.expander("Detalle del Modelo GARCH, VaR y Expected Shortfall"):
+                col_va, col_vb = st.columns(2)
+                with col_va:
+                    st.write("**Value-at-Risk (VaR) y CVaR Condicionales:**")
+                    var_table = pd.DataFrame({
+                        "Métrica": [
+                            "VaR 95% (1 día)",
+                            "VaR 99% (1 día)",
+                            "Expected Shortfall (CVaR) 95% (1 día)",
+                            "Expected Shortfall (CVaR) 99% (1 día)",
+                            f"VaR 95% ({cond_risk['var_metrics']['horizon_days']} días)",
+                            f"CVaR 95% ({cond_risk['var_metrics']['horizon_days']} días)",
+                        ],
+                        "Pérdida esperada": [
+                            f"{var_m.get('var_95_1d_pct'):+.2f}%",
+                            f"{var_m.get('var_99_1d_pct'):+.2f}%",
+                            f"{var_m.get('cvar_95_1d_pct'):+.2f}%",
+                            f"{var_m.get('cvar_99_1d_pct'):+.2f}%",
+                            f"{var_m.get('var_95_horizon_pct'):+.2f}%",
+                            f"{var_m.get('cvar_95_horizon_pct'):+.2f}%",
+                        ],
+                    })
+                    st.dataframe(var_table, width="stretch", hide_index=True)
+
+                with col_vb:
+                    st.write("**Parámetros del Modelo y Persistencia:**")
+                    st.write(f"- **Modelo:** `{cond_risk.get('model')}`")
+                    st.write(rf"- **Persistencia ($\alpha + \beta + 0.5\gamma$):** `{cond_risk.get('persistence')}`")
+                    if cond_risk.get("half_life_days"):
+                        st.write(f"- **Vida media del shock:** `{cond_risk.get('half_life_days')} ruedas`")
+                    st.write(
+                        f"- **Volatilidad proyectada (30d):** "
+                        f"`{cond_risk.get('projected_volatility_30d_annualized_pct')}% anual`"
+                    )
+                    if cond_risk.get("parameters"):
+                        st.json(cond_risk["parameters"])
 
         br = {k.replace("_pct", "").replace("_", " "): (None if v is None else f"{v:+.2f}%")
               for k, v in risk["returns_breakdown"].items()}
@@ -504,22 +586,38 @@ with tabs[2]:
 # 4. Pronóstico
 # ---------------------------------------------------------------------------
 with tabs[3]:
-    st.caption("Serie temporal del log-precio con ARIMA/ETS, intervalo del 95% y backtest contra el benchmark ingenuo.")
+    st.caption("Serie temporal del log-precio con ARIMA, ETS, Theta y Ensamble, validada por backtest y simulación Monte Carlo.")
     c1, c2 = st.columns(2)
     horizon = c1.slider("Horizonte (ruedas)", 5, 120, 30, step=5)
-    model = c2.selectbox("Modelo", MODELS, help="'auto' elige el de menor error en el backtest.")
-    if st.button("Calcular pronóstico", type="primary"):
-        st.session_state["fc_key"] = (symbol, period, horizon, model)
+    model = c2.selectbox("Modelo", MODELS, help="'auto' elige el de menor error en backtest; 'ensemble' combina ARIMA+ETS+Theta.")
 
-    if st.session_state.get("fc_key") == (symbol, period, horizon, model):
+    with st.expander("Niveles clave para Monte Carlo (Opcional)", expanded=False):
+        cs1, cs2 = st.columns(2)
+        sup_in = cs1.number_input("Soporte a evaluar", min_value=0.0, value=0.0, step=1.0,
+                                  help="Dejar en 0.0 para detectar el mínimo reciente automáticamente.")
+        res_in = cs2.number_input("Resistencia a evaluar", min_value=0.0, value=0.0, step=1.0,
+                                  help="Dejar en 0.0 para detectar el máximo reciente automáticamente.")
+
+    support_val = float(sup_in) if sup_in > 0 else None
+    resistance_val = float(res_in) if res_in > 0 else None
+
+    if st.button("Calcular pronóstico", type="primary"):
+        st.session_state["fc_key"] = (symbol, period, horizon, model, support_val, resistance_val)
+
+    if st.session_state.get("fc_key") == (symbol, period, horizon, model, support_val, resistance_val):
         try:
-            with st.spinner("Ajustando modelos…"):
-                result = load_forecast(symbol, period, horizon, model)
+            with st.spinner("Ajustando modelos y ejecutando simulación Monte Carlo…"):
+                result = load_forecast(symbol, period, horizon, model, support_val, resistance_val)
         except (ValueError, RuntimeError) as exc:
             st.error(str(exc))
         else:
             s, bt = result["summary"], result["backtest"]
             end = s["forecast_end"]
+            mc_sum = s.get("monte_carlo", {})
+            probs = mc_sum.get("probabilities", {})
+            sup_a = mc_sum.get("support_analysis", {})
+            res_a = mc_sum.get("resistance_analysis", {})
+
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Último precio", fmt_money(s["last_price"], currency), help=get_help("price"))
             m2.metric(f"Pronóstico {s['forecast_end_date']}", fmt_money(end["mean"], currency),
@@ -528,20 +626,55 @@ with tabs[3]:
                       help="Intervalo de confianza al 95%: rango estadístico donde probablemente se moverá el precio.")
             m4.metric("Habilidad vs. ingenuo", f"{bt['skill_vs_naive_pct']:+.2f}%",
                       help="Mejora porcentual en precisión del modelo respecto a predecir que el precio no cambiará.")
+
+            if mc_sum:
+                mc1, mc2, mc3, mc4 = st.columns(4)
+                mc1.metric("P(Alza en horizonte)", f"{probs.get('prob_gain_pct', 0)}%",
+                           help="Probabilidad de que el precio final supere el actual (simulación GBM).")
+                mc2.metric(f"P(Toque Res. {res_a.get('price', 0):,.2f})",
+                           f"{res_a.get('prob_touch_during_horizon_pct', 0)}%",
+                           help="Probabilidad de tocar la resistencia en cualquier momento del horizonte.")
+                mc3.metric(f"P(Toque Sop. {sup_a.get('price', 0):,.2f})",
+                           f"{sup_a.get('prob_touch_during_horizon_pct', 0)}%",
+                           help="Probabilidad de tocar el soporte en cualquier momento del horizonte.")
+                mc4.metric("Vol. Monte Carlo (anual)", f"{mc_sum.get('volatility_annualized_pct', 0)}%",
+                           help="Volatilidad anualizada calibrada para el Movimiento Browniano Geométrico.")
+
             st.plotly_chart(build_forecast_figure(symbol, result, currency), width="stretch")
             for w in s["warnings"]:
                 st.warning(w)
-            with st.expander("Detalle del modelo y backtest"):
-                st.write(f"**Modelo:** {s['model_selected']} ({s['selection']})")
+
+            with st.expander("Detalle del modelo, ensamble y backtest"):
+                st.write(f"**Modelo seleccionado:** {s['model_selected']} ({s['selection']})")
+                if s.get("ensemble_weights"):
+                    st.write("**Ponderaciones del ensamble (inversa de MAE):**", s["ensemble_weights"])
                 st.write("**Estacionariedad del log-precio (ADF):**", s["stationarity_log_price"])
                 st.write("**Backtest:**", {k: v for k, v in s["backtest"].items()})
                 if s["backtest_all_models"]:
-                    st.write("**Comparación de modelos:**")
+                    st.write("**Comparación de modelos en backtest:**")
                     st.dataframe(pd.DataFrame(s["backtest_all_models"]).T, width="stretch")
                 fc = result["forecast"].round(2)
                 fc.index = fc.index.strftime("%Y-%m-%d")
                 st.dataframe(fc.rename(columns={"mean": "Pronóstico", "lower": "Inf. 95%", "upper": "Sup. 95%"}),
                              width="stretch")
+
+            if mc_sum:
+                with st.expander("Detalle de Simulación Monte Carlo (Percentiles y Probabilidades)"):
+                    st.write("**Distribución de precios proyectados al final del horizonte:**")
+                    p_df = pd.DataFrame([mc_sum.get("percentiles_end", {})], index=["Precio proyectado"])
+                    st.dataframe(p_df, width="stretch")
+
+                    st.write("**Probabilidades de escenarios de variación:**")
+                    prob_df = pd.DataFrame({
+                        "Escenario": ["Subida >= +5%", "Subida >= +10%", "Caída <= -5%", "Caída <= -10%"],
+                        "Probabilidad": [
+                            f"{probs.get('prob_gain_5pct', 0)}%",
+                            f"{probs.get('prob_gain_10pct', 0)}%",
+                            f"{probs.get('prob_loss_5pct', 0)}%",
+                            f"{probs.get('prob_loss_10pct', 0)}%",
+                        ],
+                    })
+                    st.dataframe(prob_df, width="stretch", hide_index=True)
     else:
         st.info("Ajusta los parámetros y pulsa **Calcular pronóstico**.")
 

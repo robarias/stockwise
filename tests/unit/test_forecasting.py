@@ -8,6 +8,7 @@ from stockwise.analytics.forecasting import (
     future_business_days,
     prepare_close_series,
 )
+from stockwise.analytics.monte_carlo import simulate_monte_carlo
 from tests.conftest import make_ohlcv
 
 
@@ -45,7 +46,7 @@ def test_adf_random_walk_is_not_stationary_but_returns_are(ohlcv):
     assert adf_test(log_price.diff().dropna())["stationary"] is True
 
 
-@pytest.mark.parametrize("model", ["arima", "ets"])
+@pytest.mark.parametrize("model", ["arima", "ets", "theta", "ensemble"])
 def test_forecast_shape_and_bounds(ohlcv, model):
     res = forecast_close(ohlcv, horizon=15, model=model)
     fc = res["forecast"]
@@ -59,13 +60,16 @@ def test_forecast_shape_and_bounds(ohlcv, model):
 
 
 def test_forecast_summary_contract(ohlcv):
-    s = forecast_close(ohlcv, horizon=10, model="auto")["summary"]
+    res = forecast_close(ohlcv, horizon=10, model="auto")
+    s = res["summary"]
     assert s["horizon_days"] == 10
-    assert {"model_selected", "backtest", "warnings", "forecast_end", "stationarity_log_price"} <= s.keys()
+    assert {"model_selected", "backtest", "warnings", "forecast_end", "stationarity_log_price", "monte_carlo"} <= s.keys()
     assert s["backtest"]["holdout_days"] >= 10
     assert 0 <= s["backtest"]["ci_coverage_pct"] <= 100
     assert any("asesor" in w.lower() or "recomendación" in w.lower() for w in s["warnings"])
-    assert set(s["backtest_all_models"]) == {"arima", "ets"}
+    assert set(s["backtest_all_models"]) == {"arima", "ets", "theta", "ensemble"}
+    assert "monte_carlo" in res
+    assert "fan_chart" in res["monte_carlo"]
 
 
 def test_forecast_is_deterministic(ohlcv):
@@ -83,3 +87,42 @@ def test_invalid_horizon(ohlcv, horizon):
 def test_invalid_model(ohlcv):
     with pytest.raises(ValueError, match="no soportado"):
         forecast_close(ohlcv, model="prophet")
+
+
+def test_monte_carlo_simulation(ohlcv):
+    mc = simulate_monte_carlo(ohlcv, horizon=20, n_simulations=1000, seed=42)
+    assert mc["horizon_days"] == 20
+    assert mc["n_simulations"] == 1000
+
+    fan = mc["fan_chart"]
+    assert len(fan) == 20
+    assert {"p5", "p10", "p25", "p50", "p75", "p90", "p95", "mean"} <= set(fan.columns)
+
+    # Monotonía de percentiles finales
+    p = mc["percentiles_end"]
+    assert p["p5"] <= p["p10"] <= p["p25"] <= p["p50"] <= p["p75"] <= p["p90"] <= p["p95"]
+
+    # Probabilidades acotadas entre 0 y 100
+    probs = mc["probabilities"]
+    assert 0 <= probs["prob_gain_pct"] <= 100
+    assert 0 <= probs["prob_loss_pct"] <= 100
+
+    # Soporte y resistencia
+    sup_a = mc["support_analysis"]
+    res_a = mc["resistance_analysis"]
+    assert sup_a["is_auto"] is True
+    assert res_a["is_auto"] is True
+    # La probabilidad de tocar durante el horizonte es mayor o igual a terminar por debajo/encima
+    assert sup_a["prob_touch_during_horizon_pct"] >= sup_a["prob_end_below_pct"]
+    assert res_a["prob_touch_during_horizon_pct"] >= res_a["prob_end_above_pct"]
+
+
+def test_monte_carlo_custom_support_resistance(ohlcv):
+    last = float(ohlcv["Close"].iloc[-1])
+    sup = round(last * 0.90, 2)
+    res = round(last * 1.10, 2)
+    mc = simulate_monte_carlo(ohlcv, horizon=15, n_simulations=500, support_price=sup, resistance_price=res)
+    assert mc["support_analysis"]["price"] == sup
+    assert mc["support_analysis"]["is_auto"] is False
+    assert mc["resistance_analysis"]["price"] == res
+    assert mc["resistance_analysis"]["is_auto"] is False

@@ -233,13 +233,43 @@ METRIC_GLOSSARY: dict[str, dict[str, str]] = {
             "Mide la resistencia psicológica y tolerancia al riesgo requerida."
         ),
     },
+    "garch": {
+        "title": "Volatilidad Condicional GARCH",
+        "description": "Medición dinámica del riesgo que se adapta a las fluctuaciones recientes del mercado en lugar de asumir una varianza constante.",
+        "rule_of_thumb": (
+            "Si la volatilidad GARCH supera significativamente a la histórica media, el activo atraviesa un régimen de estrés; "
+            "si es inferior, está en calma o consolidación."
+        ),
+    },
+    "var_condicional": {
+        "title": "Value at Risk (VaR) Condicional",
+        "description": "Pérdida máxima esperada para un horizonte dado con un nivel de confianza estadístico (ej. 95% o 99%).",
+        "rule_of_thumb": (
+            "Un VaR diario del 95% de -2.5% significa que en el 95% de las sesiones la pérdida no superará el 2.5% "
+            "(o que solo 1 de cada 20 días se perderá más de esa cifra)."
+        ),
+    },
+    "cvar_condicional": {
+        "title": "Expected Shortfall (CVaR)",
+        "description": "Pérdida promedio esperada en los días extremos donde el VaR es superado (riesgo de cola).",
+        "rule_of_thumb": (
+            "Responde a: 'Si hoy ocurre un evento catastrófico del peor 5% de los días, ¿cuánto espero perder en promedio?'."
+        ),
+    },
+    "volatility_regime": {
+        "title": "Régimen de Volatilidad",
+        "description": "Clasificación del estado del mercado (Baja, Normal, Estrés) comparando el riesgo instantáneo con el promedio histórico.",
+        "rule_of_thumb": (
+            "En régimen de estrés conviene reducir el tamaño de posición (position sizing) para mitigar caídas severas."
+        ),
+    },
     # Pronóstico
     "forecast": {
-        "title": "Pronóstico de Serie Temporal",
-        "description": "Modelado econométrico (ARIMA / Suavizado Exponencial ETS) de la tendencia histórica del precio.",
+        "title": "Pronóstico de Series Temporales y Monte Carlo",
+        "description": "Modelado econométrico (ARIMA / ETS / Theta / Ensamble) y probabilístico (Simulación Monte Carlo GBM) del precio.",
         "rule_of_thumb": (
-            "Ningún modelo predice el futuro con certeza. Presta especial atención al abanico del 95% "
-            "(intervalo de confianza) y al porcentaje de habilidad contra el modelo ingenuo."
+            "Ningún modelo predice el futuro con certeza. Presta especial atención al abanico del 95%, "
+            "a las probabilidades de soporte/resistencia por Monte Carlo y a la habilidad vs. modelo ingenuo."
         ),
     },
     # Eventos y Noticias
@@ -468,16 +498,18 @@ SECTION_GUIDES: dict[str, dict[str, Any]] = {
         "tips": [
             ("1. Volatilidad Anualizada", "Define el 'oleaje' del activo. Si una acción con más del 40% de volatilidad no te permite dormir tranquilo, necesitas activos más estables o ETFs diversificados."),
             ("2. Máximo Drawdown (Peor Escenario Histórico)", "Te muestra la mayor caída que sufrió el activo. Pregúntate siempre: ¿Soportaría mi cuenta y mi psicología ver una caída de esa magnitud sin liquidar con pérdidas?"),
-            ("3. Principio de Diversificación", "Nunca concentres una porción excesiva de tu capital en una sola acción individual.")
+            ("3. Value at Risk (VaR) y Volatilidad GARCH", "El VaR condicional al 95% te dice la pérdida diaria máxima esperada en el régimen de mercado actual, clave para dimensionar el tamaño de tu posición."),
+            ("4. Principio de Diversificación", "Nunca concentres una porción excesiva de tu capital en una sola acción individual.")
         ],
     },
     "forecast": {
-        "title": "💡 Guía para Principiantes: ¿Cómo entender las Proyecciones Estadísticas?",
+        "title": "💡 Guía para Principiantes: ¿Cómo entender las Proyecciones Estadísticas y Monte Carlo?",
         "intro": "Las series temporales analizan la trayectoria histórica reciente para proyectar escenarios probables con márgenes de error.",
         "tips": [
             ("1. Estimaciones Probabilísticas", "El valor central no es una certeza matemática; el abanico del 95% muestra el rango realista donde puede moverse el precio."),
             ("2. Habilidad vs. Modelo Ingenuo (Skill)", "Si la habilidad es positiva, el modelo aportó mejor capacidad predictiva que la simple suposición de que el precio de mañana repetirá el de hoy."),
-            ("3. Brújula Complementaria", "Usa siempre las proyecciones como complemento de los fundamentales y nunca como única señal de inversión.")
+            ("3. Simulación Monte Carlo", "Proyecta miles de trayectorias aleatorias para estimar probabilidades concretas de tocar soportes, resistencias o tener ganancias en el horizonte."),
+            ("4. Brújula Complementaria", "Usa siempre las proyecciones como complemento de los fundamentales y nunca como única señal de inversión.")
         ],
     },
     "events_and_news": {
