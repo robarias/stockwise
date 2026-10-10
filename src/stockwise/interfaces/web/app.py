@@ -78,7 +78,7 @@ from stockwise.viz.portfolio import (
 from stockwise.viz.risk import build_conditional_volatility_figure
 from stockwise.viz.technical import build_technical_figure
 
-st.set_page_config(page_title="StockWise", page_icon="📈", layout="wide")
+st.set_page_config(page_title="StockWise", page_icon="🦉", layout="wide")
 
 st.markdown(
     """
@@ -374,7 +374,7 @@ def pct_delta(value) -> str | None:
 # ---------------------------------------------------------------------------
 # Barra lateral: selección del activo
 # ---------------------------------------------------------------------------
-st.sidebar.title("📈 StockWise")
+st.sidebar.title("🦉 StockWise")
 market = st.sidebar.radio("Mercado", ["🇨🇴 Colombia (BVC)", "🇺🇸 Estados Unidos", "🌐 Otro (ticker manual)"])
 
 if market.startswith("🇨🇴"):
