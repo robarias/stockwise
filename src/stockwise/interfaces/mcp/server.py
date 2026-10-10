@@ -576,7 +576,11 @@ def get_stock_events_and_news(ticker: str, limit: int = 8) -> dict[str, Any]:
 
 
 @mcp.tool()
-def generate_investment_memo_pdf(ticker: str, output_dir: str | None = None) -> dict[str, Any]:
+def generate_investment_memo_pdf(
+    ticker: str,
+    output_dir: str | None = None,
+    lang: str = "es",
+) -> dict[str, Any]:
     """
     Genera un Memorando Ejecutivo de Inversión institucional en formato PDF (2 páginas).
     Incluye resumen de tesis, scorecard de múltiplos y rentabilidad, gráfico técnico de alta resolución,
@@ -585,9 +589,10 @@ def generate_investment_memo_pdf(ticker: str, output_dir: str | None = None) -> 
     Args:
         ticker: Símbolo bursátil (ej: 'AAPL', 'MSFT', 'ECOPETROL', 'ISA.CL').
         output_dir: Directorio opcional donde guardar el PDF. Si es None, usa 'charts/reports/'.
+        lang: Idioma del reporte ('es' para Español o 'en' para Inglés). Por defecto 'es'.
     """
     try:
-        pdf_path = save_investment_memo_pdf(symbol=ticker, output_dir=output_dir)
+        pdf_path = save_investment_memo_pdf(symbol=ticker, output_dir=output_dir, lang=lang)
         return {
             "status": "success",
             "ticker": resolve_ticker(ticker),
