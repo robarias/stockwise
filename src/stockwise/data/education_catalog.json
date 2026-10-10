@@ -1,0 +1,348 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-10-10",
+  "resources": [
+    {
+      "id": "khan-academy-stocks",
+      "title": "Khan Academy: Acciones y Bonos",
+      "author": "Khan Academy",
+      "url": "https://es.khanacademy.org/economics-finance-policy/core-finance/stock-and-bonds",
+      "category": "Básicos & Principios de Inversión",
+      "type": "Curso gratuito",
+      "level": "Principiante",
+      "language": "Español",
+      "description": "Curso modular completamente gratuito en español con lecciones cortas en video. Explica desde cero qué es una acción, por qué las empresas emiten deuda o capital, cómo funciona la bolsa de valores y qué es una OPI (IPO).",
+      "key_takeaways": [
+        "Comprender la diferencia entre ser accionista y prestamista (bonos)",
+        "Entender la mecánica de compra y venta de valores en los mercados secundarios",
+        "Aprender sin jerga intimidante a través de analogías sencillas"
+      ],
+      "status": "active",
+      "last_checked": "2026-10-10"
+    },
+    {
+      "id": "aula-bvc-inversionistas",
+      "title": "Aula BVC: Guías para Inversionistas de Bolsa de Valores de Colombia",
+      "author": "Bolsa de Valores de Colombia (bvc)",
+      "url": "https://www.bvc.com.co",
+      "category": "Mercado Colombiano & Regional",
+      "type": "Guía oficial",
+      "level": "Principiante",
+      "language": "Español",
+      "description": "Portal educativo oficial de la Bolsa de Valores de Colombia. Contiene guías para inversionistas personas naturales sobre cómo invertir en acciones colombianas (Ecopetrol, Bancolombia, Grupo Sura, etc.), el funcionamiento de la rueda de negociación y la custodia en Deceval.",
+      "key_takeaways": [
+        "Cómo abrir cuenta con una Sociedad Comisionista de Bolsa (SCB) en Colombia",
+        "Entender el índice bursátil MSCI COLCAP y la tributación local de dividendos",
+        "Conocer los derechos de los accionistas minoritarios y asambleas corporativas"
+      ],
+      "status": "active",
+      "last_checked": "2026-10-10"
+    },
+    {
+      "id": "investopedia-fundamentals",
+      "title": "Investopedia: Fundamental Analysis Guide",
+      "author": "Investopedia Academy",
+      "url": "https://www.investopedia.com/terms/f/fundamentalanalysis.asp",
+      "category": "Análisis Fundamental & Valuación",
+      "type": "Artículo pedagógico",
+      "level": "Principiante",
+      "language": "Inglés",
+      "description": "La guía de referencia mundial más consultada sobre análisis fundamental. Explica cómo leer estados financieros (Balance General, Estado de Resultados, Flujo de Caja) y cómo calcular múltiplos clave como P/E, PEG y EV/EBITDA.",
+      "key_takeaways": [
+        "Cómo distinguir entre valor intrínseco y precio de cotización de mercado",
+        "Interpretación paso a paso de los tres estados financieros corporativos",
+        "Ejemplos prácticos de cálculo de múltiplos comparables"
+      ],
+      "status": "active",
+      "last_checked": "2026-10-10"
+    },
+    {
+      "id": "book-psychology-of-money",
+      "title": "La psicología del dinero (The Psychology of Money)",
+      "author": "Morgan Housel",
+      "url": "https://www.morganhousel.com",
+      "category": "Básicos & Principios de Inversión",
+      "type": "Libro fundamental",
+      "level": "Principiante",
+      "language": "Español / Inglés",
+      "description": "Uno de los libros de finanzas personales e inversión más aclamados del siglo XXI. En 20 historias cortas, demuestra que el éxito financiero depende menos del cociente intelectual o fórmulas matemáticas y más del comportamiento emocional ante la codicia y el pánico.",
+      "key_takeaways": [
+        "El mayor riesgo al invertir es el comportamiento impulsivo del propio inversor",
+        "La paciencia y el interés compuesto a largo plazo superan el intento de adivinar el mercado",
+        "Cómo definir qué es 'suficiente' para evitar apalancamiento destructivo"
+      ],
+      "status": "active",
+      "last_checked": "2026-10-10"
+    },
+    {
+      "id": "book-random-walk",
+      "title": "Un paseo aleatorio por Wall Street (A Random Walk Down Wall Street)",
+      "author": "Burton G. Malkiel",
+      "url": "https://wwnorton.com",
+      "category": "Riesgo & Portafolios",
+      "type": "Libro fundamental",
+      "level": "Principiante",
+      "language": "Español / Inglés",
+      "description": "Un clásico imprescindible que introduce la hipótesis de los mercados eficientes y defiende por qué los fondos indexados (ETFs como el SPY o ICOLCAP) suelen batir a la gran mayoría de gestores profesionales activos a lo largo del tiempo.",
+      "key_takeaways": [
+        "Los fundamentos teóricos y prácticos de la diversificación de carteras",
+        "Por qué intentar predecir el momento exacto del mercado (market timing) suele restar rentabilidad",
+        "Historia pedagógica de las burbujas financieras y cómo protegerse de ellas"
+      ],
+      "status": "active",
+      "last_checked": "2026-10-10"
+    },
+    {
+      "id": "damodaran-online",
+      "title": "Damodaran Online: Valuation & Corporate Finance",
+      "author": "Prof. Aswath Damodaran (NYU Stern)",
+      "url": "https://pages.stern.nyu.edu/~adamodar/",
+      "category": "Análisis Fundamental & Valuación",
+      "type": "Curso gratuito",
+      "level": "Intermedio",
+      "language": "Inglés",
+      "description": "Conocido como 'el decano de la valoración de Wall Street', el profesor Damodaran ofrece gratuitamente todas sus clases universitarias completas, diapositivas y hojas de cálculo con datos de valuación de miles de empresas de todo el mundo.",
+      "key_takeaways": [
+        "Metodología de flujos de caja descontados (DCF) explicada con rigor y honestidad",
+        "Cómo valorar empresas en diferentes etapas (startups, gigantes maduros, firmas endeudadas)",
+        "Estimación de costo de capital, beta y primas de riesgo por país"
+      ],
+      "status": "active",
+      "last_checked": "2026-10-10"
+    },
+    {
+      "id": "investor-gov-sec",
+      "title": "Investor.gov: Centro de Educación para Inversionistas de la SEC",
+      "author": "U.S. Securities and Exchange Commission (SEC)",
+      "url": "https://www.investor.gov",
+      "category": "Básicos & Principios de Inversión",
+      "type": "Guía oficial",
+      "level": "Principiante",
+      "language": "Español / Inglés",
+      "description": "Portal oficial del regulador de valores de Estados Unidos diseñado específicamente para proteger y educar al inversionista particular. Incluye calculadoras de interés compuesto y advertencias sobre fraudes y promesas de rentabilidad irreal.",
+      "key_takeaways": [
+        "Herramientas para calcular el impacto de comisiones e inflación en tu patrimonio",
+        "Guías para identificar señales de alerta y esquemas fraudulentos",
+        "Entender los documentos oficiales 10-K (anual) y 10-Q (trimestral) que presentan las empresas"
+      ],
+      "status": "active",
+      "last_checked": "2026-10-10"
+    },
+    {
+      "id": "banrep-educa",
+      "title": "Banrep Educa: Cómo Funciona la Tasa de Cambio y la Inflación",
+      "author": "Banco de la República de Colombia",
+      "url": "https://www.banrep.gov.co",
+      "category": "Mercado Colombiano & Regional",
+      "type": "Guía oficial",
+      "level": "Principiante",
+      "language": "Español",
+      "description": "Recurso pedagógico del banco central colombiano. Explica de forma visual qué determina la TRM (Tasa Representativa del Mercado USD/COP), cómo las decisiones de tasas de interés afectan las acciones locales y el costo de vida.",
+      "key_takeaways": [
+        "Factores que mueven el precio del dólar en Colombia (petróleo, tasas externas, balanza comercial)",
+        "Relación entre inflación, tasas de interés bancarias y rendimiento de la bolsa local",
+        "El rol del Banco de la República como estabilizador macroeconómico"
+      ],
+      "status": "active",
+      "last_checked": "2026-10-10"
+    },
+    {
+      "id": "fidelity-technical-analysis",
+      "title": "Fidelity Learning Center: Visión General del Análisis Técnico",
+      "author": "Fidelity Investments",
+      "url": "https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-analysis-overview",
+      "category": "Análisis Técnico",
+      "type": "Artículo pedagógico",
+      "level": "Principiante",
+      "language": "Inglés",
+      "description": "Guía pedagógica oficial elaborada por Fidelity para inversores individuales. Explica con gráficos y ejemplos claros cómo identificar tendencias, usar soportes y resistencias, y utilizar medias móviles e indicadores de momento sin caer en trampas psicológicas.",
+      "key_takeaways": [
+        "Reglas clásicas para trazar líneas de soporte y resistencia válidas",
+        "Identificación de tendencias alcistas, bajistas y rangos laterales de consolidación",
+        "Cómo evitar señales falsas en osciladores combinando múltiples horizontes de tiempo"
+      ],
+      "status": "active",
+      "last_checked": "2026-10-10"
+    }
+  ],
+  "chart_guides": {
+    "candles_and_bands": {
+      "id": "candles_and_bands",
+      "title": "Velas Japonesas, Medias Móviles y Bandas de Bollinger",
+      "tab_ref": "📊 Técnico",
+      "purpose": "Identificar la dirección de la tendencia dominante, los soportes/resistencias dinámicos y la compresión o estallido de la volatilidad.",
+      "what_you_see": [
+        "Velas Japonesas: Cada vela resume una sesión. Verde significa que el precio cerró por encima de su apertura; roja que cerró por debajo. Las mechas (líneas finas) marcan el máximo y mínimo alcanzados en el día.",
+        "Medias Móviles (SMA 50 y SMA 200): Líneas suaves que promedian el precio de los últimos 50 y 200 días para filtrar el ruido diario y mostrar la marea de fondo.",
+        "Bandas de Bollinger: Una banda central (media de 20 días) y dos bandas exteriores a 2 desviaciones estándar que forman un canal envolvente."
+      ],
+      "key_signals": [
+        "Cruce Dorado (Golden Cross): Ocurre cuando la media rápida (SMA 50) cruza hacia arriba a la media lenta (SMA 200). Es una confirmación clásica de cambio de tendencia a alcista estructural.",
+        "Cruce de la Muerte (Death Cross): Cuando la SMA 50 cruza hacia abajo a la SMA 200, señalando debilidad y posible tendencia bajista prolongada.",
+        "Estratagema de Bollinger (Squeeze): Cuando las bandas se estrechan mucho formando un cuello de botella, indica que la volatilidad se ha secado y anticipa un movimiento explosivo inminente.",
+        "Soporte Dinámico: En una tendencia alcista sana, los retrocesos del precio suelen frenar y rebotar cerca de la SMA 50 o de la banda media de Bollinger."
+      ],
+      "rookie_mistakes": [
+        "Creer que tocar la banda superior significa vender de inmediato: en tendencias fuertes de compra, el precio puede continuar pegado a la banda superior ('caminando sobre la banda') durante semanas.",
+        "Comprar una acción en caída libre solo porque 'parece barata', cuando cotiza muy por debajo de su SMA 200 con medias apuntando hacia abajo."
+      ]
+    },
+    "oscillators_rsi_macd": {
+      "id": "oscillators_rsi_macd",
+      "title": "Osciladores de Momento: RSI y MACD",
+      "tab_ref": "📊 Técnico",
+      "purpose": "Evaluar la velocidad e intensidad de las compras o ventas para detectar momentos de euforia, pánico o pérdida de fuerza en la tendencia.",
+      "what_you_see": [
+        "RSI (Índice de Fuerza Relativa): Escala de 0 a 100 con líneas horizontales punteadas en 70 y 30. Mide el equilibrio entre días de ganancias y pérdidas recientes.",
+        "Línea MACD (azul): Diferencia entre dos medias exponenciales de corto y mediano plazo (12 y 26 periodos).",
+        "Línea de Señal (naranja): Media exponencial de 9 periodos de la propia línea MACD.",
+        "Histograma MACD: Barras verticales que representan la distancia entre la línea MACD y su señal."
+      ],
+      "key_signals": [
+        "Sobrecompra (RSI > 70): El precio ha subido muy rápido en poco tiempo. Alerta de posible pausa o corrección a corto plazo.",
+        "Sobreventa (RSI < 30): El precio ha sufrido ventas excesivas. Señala pesimismo extremo y potencial oportunidad de rebote.",
+        "Cruce Alcista de MACD: Cuando la línea MACD cruza hacia arriba a la señal (el histograma pasa de negativo a positivo), confirma impulso comprador.",
+        "Divergencia Bajista: Si el precio marca un nuevo máximo más alto que el anterior, pero el RSI o MACD marca un máximo más bajo, avisa que la subida carece de fuerza interna y puede revertirse."
+      ],
+      "rookie_mistakes": [
+        "Comprar a ciegas solo porque el RSI bajó de 30: si la empresa tiene problemas fundamentales graves, el RSI puede permanecer sobrevendido por meses mientras el precio sigue cayendo.",
+        "Usar los osciladores en solitario sin mirar el contexto de la tendencia de fondo en la gráfica de velas."
+      ]
+    },
+    "risk_drawdown_garch": {
+      "id": "risk_drawdown_garch",
+      "title": "Riesgo Dinámico: Underwater Drawdown y Volatilidad GARCH",
+      "tab_ref": "⚖️ Riesgo",
+      "purpose": "Visualizar las peores pérdidas temporales históricas y evaluar si el activo se encuentra en un régimen de calma o de estrés financiero.",
+      "what_you_see": [
+        "Gráfica Submarina (Drawdown): Muestra caídas porcentuales negativas partiendo desde la superficie (0% = nuevo máximo histórico). Los valles muestran la profundidad de la pérdida.",
+        "Volatilidad Condicional GARCH: Línea que rastrea la volatilidad instantánea anualizada calculada con modelos heterocedásticos GARCH(1,1).",
+        "Bandas de Régimen: Umbrales que clasifican el estado actual en régimen de baja volatilidad, normal o régimen de estrés."
+      ],
+      "key_signals": [
+        "Máximo Drawdown Histórico: Responde a la pregunta: '¿Cuál es la peor caída que hubiese experimentado mi inversión en este periodo?'. Permite calibrar la tolerancia psicológica al dolor financiero.",
+        "Tiempo de Recuperación: Muestra cuántos meses o años tardó el activo en volver a romper máximos anteriores tras una caída severa.",
+        "Régimen de Estrés GARCH: Si la volatilidad condicional supera con creces el promedio histórico, el riesgo de pérdidas bruscas en los próximos días aumenta sustancialmente.",
+        "VaR Condicional al 95%: Pérdida máxima esperada para una sola jornada en 19 de cada 20 sesiones bajo el régimen actual."
+      ],
+      "rookie_mistakes": [
+        "Mirar únicamente el retorno porcentual positivo sin evaluar el drawdown: un activo con 25% de retorno anual pero un drawdown del -55% expone al inversor a liquidar en pánico en el peor momento.",
+        "Asumir que la volatilidad es constante a lo largo del tiempo, ignorando los picos de contagio en crisis de mercado."
+      ]
+    },
+    "forecasting_and_monte_carlo": {
+      "id": "forecasting_and_monte_carlo",
+      "title": "Pronóstico de Series Temporales y Simulación Monte Carlo",
+      "tab_ref": "🔮 Pronóstico",
+      "purpose": "Explorar escenarios probabilísticos del precio en las próximas semanas y cuantificar la incertidumbre sin caer en predicciones mágicas.",
+      "what_you_see": [
+        "Proyección Central (Línea discontinua): Estimación del valor más probable según el modelo econométrico ajustado (ARIMA, ETS, Theta o Ensamble).",
+        "Cono de Incertidumbre (80% y 95%): Franja sombreada que se expande hacia adelante mostrando el rango estadístico donde se espera que oscile el precio.",
+        "Trayectorias Monte Carlo: Cientos de caminos aleatorios simulados mediante Movimiento Browniano Geométrico (GBM) basados en el drift y la volatilidad histórica.",
+        "Histograma Terminal: Distribución final de precios al término del horizonte de pronóstico."
+      ],
+      "key_signals": [
+        "Apertura del Cono: Si el cono se abre muy rápido, la incertidumbre del activo es sumamente alta.",
+        "Habilidad del Modelo (Skill vs. Naive): Si la métrica de habilidad es positiva (>0%), el modelo demostró mejor capacidad explicativa que la hipótesis ingenua de que el precio de mañana repetirá el de hoy.",
+        "Probabilidad de Ganancia en Monte Carlo: Porcentaje de trayectorias que terminaron por encima del precio actual al cierre del horizonte.",
+        "Probabilidad de Tocar Soporte: Porcentaje de simulaciones que perforaron el nivel de soporte clave durante el trayecto."
+      ],
+      "rookie_mistakes": [
+        "Interpretar la línea central del pronóstico como una certeza o recomendación garantizada: en los mercados financieros el futuro es intrínsecamente incierto.",
+        "Confiar ciegamente en un modelo con habilidad negativa (skill < 0) o basar decisiones de inversión exclusivamente en proyecciones estadísticas sin fundamentos del negocio."
+      ]
+    },
+    "multiactivo_comparison": {
+      "id": "multiactivo_comparison",
+      "title": "Comparativa Multiactivo: Rendimiento Base 100 y Correlación",
+      "tab_ref": "🆚 Comparar",
+      "purpose": "Contrastar el desempeño relativo entre varias acciones y encontrar activos no correlacionados para diversificar eficazmente.",
+      "what_you_see": [
+        "Gráfica Base 100: Normaliza todos los precios para que inicien exactamente en $100 en la fecha inicial. Permite comparar manzanas con manzanas independientemente del valor nominal de cada acción.",
+        "Matriz de Correlación (Heatmap): Cuadrícula de colores con valores entre -1.0 y +1.0 que miden si dos activos se mueven en la misma dirección o en sentidos opuestos."
+      ],
+      "key_signals": [
+        "Fortaleza Relativa: La curva que se mantiene de forma consistente por encima de las demás demuestra liderazgo relativo en el mercado.",
+        "Correlación Cercana a +1.0: Los activos se mueven casi idénticos (ej. dos bancos colombianos). Tener ambos aporta poca diversificación.",
+        "Correlación Baja o Negativa (0.0 a 0.3 o menor): Si un activo cae mientras el otro se mantiene o sube, la combinación reduce la volatilidad total del portafolio.",
+        "Tabla de Riesgo / Retorno: Compara en una sola vista quién ofreció más rendimiento por cada unidad de volatilidad y drawdown asumido."
+      ],
+      "rookie_mistakes": [
+        "Creer que tener 5 acciones es estar diversificado si las 5 pertenecen al mismo sector (ej. 5 energéticas o 5 tecnológicas) y tienen correlación de 0.9.",
+        "Comparar precios nominales directos en lugar de retornos porcentuales normalizados (ej. pensar que una acción de $10 USD es más barata que una de $300 USD)."
+      ]
+    }
+  },
+  "glossary_categories": [
+    {
+      "id": "all",
+      "name": "Todos los conceptos",
+      "icon": "📚"
+    },
+    {
+      "id": "valuation",
+      "name": "Valuación & Múltiplos",
+      "icon": "🏷️",
+      "keys": [
+        "market_cap",
+        "pe_ratio",
+        "forward_pe",
+        "peg_ratio",
+        "price_to_book",
+        "enterprise_to_ebitda",
+        "target_price"
+      ]
+    },
+    {
+      "id": "health",
+      "name": "Rentabilidad & Salud Financiera",
+      "icon": "🏥",
+      "keys": [
+        "net_profit_margin",
+        "roe",
+        "debt_to_equity",
+        "current_ratio",
+        "free_cashflow",
+        "dividend_yield",
+        "payout_ratio"
+      ]
+    },
+    {
+      "id": "technical",
+      "name": "Análisis Técnico & Gráficas",
+      "icon": "📊",
+      "keys": [
+        "price",
+        "volume",
+        "52w_range",
+        "rsi",
+        "macd",
+        "bollinger"
+      ]
+    },
+    {
+      "id": "risk",
+      "name": "Riesgo & Volatilidad",
+      "icon": "⚖️",
+      "keys": [
+        "cumulative_return",
+        "volatility",
+        "max_drawdown",
+        "garch",
+        "var_condicional",
+        "cvar_condicional",
+        "volatility_regime"
+      ]
+    },
+    {
+      "id": "forecast_events",
+      "name": "Pronóstico & Catalizadores",
+      "icon": "🔮",
+      "keys": [
+        "forecast",
+        "earnings_surprise",
+        "sentiment"
+      ]
+    }
+  ]
+}

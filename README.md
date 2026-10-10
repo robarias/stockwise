@@ -183,16 +183,23 @@ graph TD
 - **Rentabilidad y Balance:** Margen de utilidad neta, Margen operativo, Retorno sobre capital (ROE), Deuda/Patrimonio (Debt-to-Equity), Razón corriente de liquidez (Current Ratio) y Flujo de caja libre (Free Cash Flow).
 - **Consenso de Analistas:** Precio objetivo medio de consenso y clasificación estandarizada de recomendación (*BUY, HOLD, UNDERPERFORM*).
 
-#### 3. Métricas de Riesgo y Desempeño
+#### 3. Métricas de Riesgo, Desempeño y Volatilidad Condicional
 - **Rendimiento Acumulado:** Retorno porcentual del periodo y desglose en horizontes temporales móviles (1 semana, 1 mes, 3 meses, 6 meses, 1 año).
 - **Volatilidad Anualizada:** Desviación estándar de los retornos logarítmicos diarios escalada por factor anual de $\sqrt{252}$.
 - **Máximo Drawdown (MDD):** Pérdida porcentual máxima observada desde un pico local hasta su mínimo valle posterior en la serie analizada.
+- **Modelado GARCH / GJR-GARCH:** Estimación de varianza condicional heterocedástica ($\sigma_t^2$) capturando agrupamiento de volatilidad y efecto asimétrico de apalancamiento ante shocks bajistas.
+- **Value-at-Risk (VaR) Condicional:** Pérdida máxima esperada a 1 día y a horizonte acumulado (30 ruedas) con niveles de confianza del 95% y 99%.
+- **Expected Shortfall (CVaR Condicional):** Pérdida media esperada en la cola de distribución en caso de sobrepasar el VaR (riesgo extremo de cola).
+- **Diagnóstico de Régimen de Volatilidad:** Clasificación del activo en regímenes de *Baja Volatilidad*, *Volatilidad Normal* o *Alta Volatilidad / Estrés*, con persistencia y vida media (*half-life*) del shock.
 
-#### 4. Modelado Predictivo y Series Temporales
+#### 4. Modelado Predictivo, Series Temporales y Simulación Monte Carlo
 - **Pruebas de Estacionariedad:** Test de Dickey-Fuller Aumentado (ADF) sobre log-precios y retornos para evaluar orden de integración.
 - **Modelos Estadísticos:**
   - **ARIMA $(p, d, q)$:** Búsqueda y ajuste de órdenes optimizando el criterio de información de Akaike (AIC).
-  - **ETS (Error-Trend-Seasonal):** Modelos de suavizamiento exponencial sobre la trayectoria temporal.
+  - **ETS (Error-Trend-Seasonal):** Modelos de suavizamiento exponencial con tendencia aditiva amortiguada.
+  - **Theta Model:** Descomposición en curvatura y ciclo/tendencia de largo plazo (método ganador M3).
+  - **Ensamble Ponderado:** Combinación óptima de modelos base ponderados inversamente por su MAE en el backtest.
+- **Simulación Monte Carlo (GBM):** Simulación estocástica de trayectorias (2,000 caminos) mediante Movimiento Browniano Geométrico para estimar abanicos de probabilidad (*Fan Charts*), probabilidades de ganancia/pérdida y probabilidad de toque de niveles clave de soporte y resistencia.
 - **Validación Cruzada (Hold-Out Backtesting):** Evaluación rigurosa sobre ventana fuera de muestra calculando métricas de error: **MAE**, **MAPE**, **RMSE**, acierto direccional de signo (%) y cobertura empírica del intervalo de confianza al 95%.
 - **Benchmark Ingenuo (Naive / Random Walk):** Comparación obligatoria de habilidad predictiva frente a un paseo aleatorio. Si el modelo estadístico no supera al benchmark ingenuo, el sistema emite una advertencia explícita de fiabilidad.
 - **Exportación Interactiva:** Generación de gráficos autónomos en formato HTML mediante Plotly con ruta local y URI accesible.
@@ -216,10 +223,10 @@ El servidor registra las siguientes herramientas públicas accesibles por cualqu
 | `get_stock_quote` | `ticker: str` | `dict` | Cotización en tiempo real/último cierre, variación absoluta y %, rango 52 semanas, volumen promedio y capitalización de mercado. |
 | `get_technical_analysis` | `ticker: str`, `period: str = '1y'` | `dict` | Cálculo de RSI(14), MACD(12,26,9), Bandas de Bollinger(20,2), SMA(20,50,200), EMA(20) y notas de señalización técnica. |
 | `get_fundamental_analysis` | `ticker: str` | `dict` | Ratios de valuación (P/E, PEG, P/B, EV/EBITDA), márgenes de rentabilidad, ROE, apalancamiento, liquidez y consenso de analistas. |
-| `get_risk_and_performance` | `ticker: str`, `period: str = '1y'` | `dict` | Retorno acumulado, desglose a 1s/1m/3m/6m/1a, volatilidad anualizada ($\sigma \times \sqrt{252}$) y Máximo Drawdown histórico. |
+| `get_risk_and_performance` | `ticker: str`, `period: str = '1y'` | `dict` | Retorno acumulado, desglose periódico, volatilidad histórica y condicional (GARCH), VaR/CVaR 95% y 99%, régimen de mercado y Máximo Drawdown. |
 | `compare_stocks` | `tickers: list[str] \| str`, `period: str = '1y'` | `dict` | Análisis cruzado y ordenamiento comparativo por rendimiento acumulado, volatilidad, drawdown y P/E ratio entre múltiples activos. |
 | `get_historical_candles` | `ticker: str`, `period: str = '1mo'`, `interval: str = '1d'`, `limit: int = 30` | `dict` | Serie de velas japonesas OHLCV (Apertura, Máximo, Mínimo, Cierre, Volumen) con cambio porcentual por barra. |
-| `forecast_stock_prices` | `ticker: str`, `horizon: int = 30`, `model: str = 'auto'`, `period: str = '2y'`, `include_daily_values: bool = False` | `dict` | Pronóstico de cierre con intervalo de confianza al 95% (ARIMA/ETS), backtest vs. benchmark ingenuo y enlace a gráfico interactivo HTML. |
+| `forecast_stock_prices` | `ticker: str`, `horizon: int = 30`, `model: str = 'auto'`, `period: str = '2y'`, `include_daily_values: bool = False`, `support_price: float \| None = None`, `resistance_price: float \| None = None` | `dict` | Pronóstico de cierre con intervalo de confianza al 95% (ARIMA/ETS/Theta/Ensamble), simulación Monte Carlo de soporte/resistencia, backtest vs. benchmark ingenuo y enlace a gráfico interactivo HTML. |
 | `list_colombian_stocks_catalog` | `sector: str \| None = None` | `dict` | Catálogo clasificado de emisores y ETFs de la Bolsa de Valores de Colombia (BVC), con ticker de Yahoo Finance (`.CL`), sector y tipo. |
 | `get_colombian_stock_analysis` | `ticker: str`, `period: str = '1y'` | `dict` | Análisis integral unificado de un emisor de la BVC: cotización en COP y USD (usando TRM oficial), indicadores técnicos, riesgo y fundamentales. |
 | `get_colombian_trm` | *(sin parámetros)* | `dict` | Consulta de la Tasa Representativa del Mercado (TRM) oficial vigente en Colombia desde la API REST de Datos Abiertos (`datos.gov.co`). |
@@ -427,7 +434,7 @@ Aunque Streamlit es excelente para prototipado rápido y paneles de datos, mucha
 
 #### 1. ¿Por qué es trivial migrar en StockWise? (Diseño Desacoplado)
 StockWise fue construido bajo principios de **Clean Layered Architecture (Arquitectura Limpia en Capas)**:
-- **Ninguna dependencia de interfaz en la lógica de negocio:** Todos los cálculos matemáticos (`stockwise.analytics`), modelos predictivos ARIMA/ETS (`stockwise.analytics.forecasting`), métricas de riesgo (`stockwise.analytics.risk`), conectores de mercado (`stockwise.data`) y resolutores de activos (`stockwise.domain`) son funciones y clases puras de Python.
+- **Ninguna dependencia de interfaz en la lógica de negocio:** Todos los cálculos matemáticos (`stockwise.analytics`), modelos predictivos ARIMA/ETS/Theta/Ensamble (`stockwise.analytics.forecasting`), simulación Monte Carlo (`stockwise.analytics.monte_carlo`), modelado GARCH/VaR (`stockwise.analytics.garch`), métricas de riesgo (`stockwise.analytics.risk`), conectores de mercado (`stockwise.data`) y resolutores de activos (`stockwise.domain`) son funciones y clases puras de Python.
 - **Gráficos agnósticos y serializables:** El módulo `stockwise.viz` construye figuras nativas de **Plotly** (`go.Figure`). Estas figuras pueden exportarse como JSON puro (`fig.to_json()`), diccionarios serializables (`fig.to_dict()`), archivos HTML interactivos autónomos o imágenes estáticas (PNG, SVG, PDF).
 - **Streamlit es únicamente una capa de presentación:** `stockwise.interfaces.web` consume la lógica de la misma manera en que lo hace el servidor MCP (`stockwise.interfaces.mcp`). Cambiar de interfaz no exige alterar una sola línea del motor cuantitativo.
 

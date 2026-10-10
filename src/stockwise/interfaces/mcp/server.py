@@ -31,11 +31,15 @@ except ImportError:
 
 from stockwise.analytics.forecasting import forecast_close
 from stockwise.analytics.indicators import calculate_technical_indicators
+from stockwise.analytics.options import evaluate_contract
 from stockwise.analytics.risk import calculate_risk_metrics
 from stockwise.domain.catalogs.colombia import list_colombian_stocks
 from stockwise.domain.markets import COLOMBIA_CURRENCY, is_colombian_ticker, resolve_ticker
 from stockwise.interfaces.mcp.chart_files import save_figure
 from stockwise.services.events import fetch_stock_events_and_news
+from stockwise.services.options import get_options_surface_data
+from stockwise.services.portfolio import optimize_portfolio_basket
+from stockwise.services.reports.investment_memo import save_investment_memo_pdf
 from stockwise.viz.forecast import build_forecast_figure
 
 
@@ -244,8 +248,9 @@ def get_fundamental_analysis(ticker: str) -> dict[str, Any]:
 @mcp.tool()
 def get_risk_and_performance(ticker: str, period: str = "1y") -> dict[str, Any]:
     """
-    Calcula el rendimiento acumulado, desglose de retornos (1 semana, 1 mes, 3 meses, 6 meses, 1 año),
-    volatilidad anualizada y Máximo Drawdown (caída máxima histórica desde máximos).
+    Calcula el rendimiento acumulado, desglose de retornos periódicos, volatilidad histórica,
+    máximo drawdown, y modelado condicional GARCH con Value-at-Risk (VaR 95% y 99%),
+    Expected Shortfall (CVaR) y diagnóstico de régimen de volatilidad.
 
     Args:
         ticker: Símbolo bursátil (ej: 'SPY', 'QQQ', 'AAPL').
@@ -261,7 +266,8 @@ def get_risk_and_performance(ticker: str, period: str = "1y") -> dict[str, Any]:
     if hist.empty or len(hist) < 10:
         return {"error": f"Datos insuficientes para calcular métricas de riesgo para '{ticker_clean}'."}
 
-    risk_data = calculate_risk_metrics(hist)
+    raw_risk = calculate_risk_metrics(hist)
+    risk_data = {k: v for k, v in raw_risk.items() if not k.startswith("_")}
     risk_data["symbol"] = ticker_clean
     risk_data["period"] = period
     return risk_data
@@ -373,18 +379,23 @@ def get_historical_candles(ticker: str, period: str = "1mo", interval: str = "1d
 
 @mcp.tool()
 def forecast_stock_prices(ticker: str, horizon: int = 30, model: str = "auto", period: str = "2y",
-                          include_daily_values: bool = False) -> dict[str, Any]:
+                          include_daily_values: bool = False,
+                          support_price: float | None = None,
+                          resistance_price: float | None = None) -> dict[str, Any]:
     """
     Analiza el precio como serie temporal, pronostica el cierre con intervalo de confianza del 95%
-    (ARIMA o ETS), valida el modelo con un backtest contra el benchmark ingenuo y genera un
-    gráfico interactivo HTML. Funciona con acciones de EE. UU. y de Colombia ('.CL').
+    (ARIMA, ETS, Theta o Ensamble), valida el modelo con un backtest contra el benchmark ingenuo,
+    ejecuta una simulación Monte Carlo (GBM) para probabilidades de soporte/resistencia y genera
+    un gráfico interactivo HTML. Funciona con acciones de EE. UU. y de Colombia ('.CL').
 
     Args:
         ticker: Símbolo (ej: 'AAPL', 'ECOPETROL', 'ISA.CL').
         horizon: Ruedas bursátiles a pronosticar (1-252). Predeterminado 30.
-        model: 'auto' (elige por backtest), 'arima' o 'ets'.
+        model: 'auto' (elige por backtest), 'arima', 'ets', 'theta' o 'ensemble'.
         period: Historial para ajustar el modelo ('1y', '2y', '5y'). Predeterminado '2y'.
         include_daily_values: Si es True, incluye el pronóstico día a día en la respuesta.
+        support_price: Precio de soporte a evaluar con Monte Carlo (None = mínimo reciente).
+        resistance_price: Precio de resistencia a evaluar con Monte Carlo (None = máximo reciente).
     """
     sym = resolve_ticker(ticker)
     try:
@@ -395,7 +406,8 @@ def forecast_stock_prices(ticker: str, horizon: int = 30, model: str = "auto", p
         return {"error": f"No se obtuvieron datos históricos para '{sym}'."}
 
     try:
-        result = forecast_close(hist, horizon=horizon, model=model)
+        result = forecast_close(hist, horizon=horizon, model=model,
+                                support_price=support_price, resistance_price=resistance_price)
     except (ValueError, RuntimeError) as e:
         return {"error": str(e)}
 
@@ -561,6 +573,144 @@ def get_stock_events_and_news(ticker: str, limit: int = 8) -> dict[str, Any]:
         limit: Número máximo de noticias a recuperar (predeterminado 8).
     """
     return fetch_stock_events_and_news(ticker, limit=limit)
+
+
+@mcp.tool()
+def generate_investment_memo_pdf(ticker: str, output_dir: str | None = None) -> dict[str, Any]:
+    """
+    Genera un Memorando Ejecutivo de Inversión institucional en formato PDF (2 páginas).
+    Incluye resumen de tesis, scorecard de múltiplos y rentabilidad, gráfico técnico de alta resolución,
+    diagnóstico de riesgo heterocedástico GARCH/VaR, pronóstico cuantitativo a 30 días y eventos corporativos.
+
+    Args:
+        ticker: Símbolo bursátil (ej: 'AAPL', 'MSFT', 'ECOPETROL', 'ISA.CL').
+        output_dir: Directorio opcional donde guardar el PDF. Si es None, usa 'charts/reports/'.
+    """
+    try:
+        pdf_path = save_investment_memo_pdf(symbol=ticker, output_dir=output_dir)
+        return {
+            "status": "success",
+            "ticker": resolve_ticker(ticker),
+            "file_path": str(pdf_path),
+            "file_size_bytes": pdf_path.stat().st_size,
+            "filename": pdf_path.name,
+            "message": f"Memorando ejecutivo en PDF generado exitosamente en: {pdf_path}",
+        }
+    except Exception as exc:
+        return {
+            "status": "error",
+            "ticker": ticker,
+            "error": str(exc),
+        }
+
+
+@mcp.tool()
+def calculate_black_scholes(
+    spot: float,
+    strike: float,
+    dte_days: float,
+    volatility: float,
+    risk_free_rate: float = 0.045,
+    dividend_yield: float = 0.0,
+    option_type: str = "call",
+) -> dict[str, Any]:
+    """
+    Calcula el precio teórico de una opción europea y sus griegas analíticas usando Black-Scholes-Merton.
+
+    Args:
+        spot: Precio actual del activo subyacente.
+        strike: Precio de ejercicio de la opción.
+        dte_days: Días al vencimiento (DTE).
+        volatility: Volatilidad anualizada estimada (ej: 0.25 para 25%).
+        risk_free_rate: Tasa libre de riesgo anualizada (por defecto 0.045 = 4.5%).
+        dividend_yield: Rendimiento continuo por dividendos (por defecto 0.0).
+        option_type: Tipo de opción ('call' o 'put').
+    """
+    try:
+        res = evaluate_contract(
+            spot=spot,
+            strike=strike,
+            dte_days=dte_days,
+            volatility=volatility,
+            risk_free_rate=risk_free_rate,
+            dividend_yield=dividend_yield,
+            option_type=option_type,
+        )
+        return res.to_dict()
+    except Exception as exc:
+        return {"error": f"Error evaluando Black-Scholes: {exc}"}
+
+
+@mcp.tool()
+def get_options_surface(
+    ticker: str,
+    base_volatility: float = 0.25,
+) -> dict[str, Any]:
+    """
+    Obtiene la superficie 3D de volatilidad implícita (IV Surface) para un activo.
+    Si el activo cotiza en EE. UU., utiliza cotizaciones reales de Yahoo Finance interpoladas;
+    si es colombiano o sin opciones activas, recurre a un modelo paramétrico de sonrisa y estructura temporal.
+
+    Args:
+        ticker: Símbolo bursátil (ej: 'AAPL', 'MSFT', 'SPY', 'ECOPETROL.CL').
+        base_volatility: Volatilidad base de referencia si no hay cadena líquida en vivo (por defecto 0.25).
+    """
+    try:
+        surf = get_options_surface_data(ticker, base_volatility=base_volatility)
+        return {
+            "symbol": surf.symbol,
+            "spot_price": surf.spot_price,
+            "is_synthetic": surf.is_synthetic,
+            "min_iv_pct": surf.min_iv_pct,
+            "max_iv_pct": surf.max_iv_pct,
+            "strikes_evaluated": len(surf.strikes),
+            "strike_range": [surf.strikes[0], surf.strikes[-1]] if surf.strikes else [],
+            "dte_range_days": [surf.dtes[0], surf.dtes[-1]] if surf.dtes else [],
+            "points_count": surf.raw_points_count,
+            "data_source": surf.metadata.get("data_source", ""),
+        }
+    except Exception as exc:
+        return {"error": f"Error calculando superficie de opciones: {exc}"}
+
+
+@mcp.tool()
+def optimize_portfolio(
+    tickers: list[str] | str,
+    objective: str = "max_sharpe",
+    period: str = "2y",
+    risk_free_rate: float = 0.045,
+    max_weight: float = 1.0,
+) -> dict[str, Any]:
+    """
+    Optimiza la asignación de pesos para una cesta de activos cotizados.
+    Utiliza PyPortfolioOpt (con respaldo SLSQP) para calcular la cartera óptima, métricas anualizadas y diversificación.
+
+    Args:
+        tickers: Lista o cadena de tickers separados por coma (ej: ['AAPL', 'MSFT', 'GOOGL', 'AMZN'] o 'AAPL, MSFT, GOOGL').
+        objective: Objetivo de optimización:
+            - 'max_sharpe': Maximización del Sharpe Ratio (cartera de tangencia).
+            - 'min_volatility': Cartera de mínima varianza global.
+            - 'risk_parity': Paridad de riesgo jerárquica (HRP).
+            - 'equal_weight': Ponderación equiponderada (1/N).
+        period: Período histórico para retornos y matriz de covarianza ('1y', '2y', '5y').
+        risk_free_rate: Tasa libre de riesgo anualizada (por defecto 0.045 = 4.5%).
+        max_weight: Ponderación máxima permitida por activo (por defecto 1.0 = 100%).
+    """
+    try:
+        parsed_tickers = _parse_tickers(tickers)
+        if len(parsed_tickers) < 2:
+            return {"error": "Se requieren al menos 2 activos distintos para optimizar un portafolio."}
+
+        result = optimize_portfolio_basket(
+            tickers=parsed_tickers,
+            objective=objective,
+            period=period,
+            risk_free_rate=risk_free_rate,
+            max_weight=max_weight,
+        )
+        return result.to_dict()
+    except Exception as exc:
+        return {"error": f"Error optimizando portafolio: {exc}"}
 
 
 def main() -> None:

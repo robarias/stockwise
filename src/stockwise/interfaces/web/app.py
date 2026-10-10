@@ -26,7 +26,17 @@ except Exception:
 
 from stockwise.analytics.forecasting import MODELS, forecast_close
 from stockwise.analytics.indicators import calculate_technical_indicators
+from stockwise.analytics.options import (
+    evaluate_contract,
+    generate_parametric_iv_surface,
+)
 from stockwise.analytics.risk import calculate_risk_metrics
+from stockwise.data.education import (
+    get_chart_guides,
+    get_educational_resources,
+    get_glossary_categories,
+    search_glossary,
+)
 from stockwise.domain.catalogs.colombia import COLOMBIAN_STOCKS, list_colombian_stocks
 from stockwise.domain.education import (
     METRIC_LABELS,
@@ -39,12 +49,36 @@ from stockwise.domain.education import (
     interpret_volatility,
 )
 from stockwise.domain.markets import is_colombian_ticker, resolve_ticker
+from stockwise.domain.options import OptionType
+from stockwise.domain.portfolio import OptimizationObjective
 from stockwise.interfaces.mcp import server  # TODO(fase 2): reemplazar por stockwise.services
+from stockwise.services.options import (
+    get_options_surface_data,
+    get_pricing_heatmap_data,
+)
+from stockwise.services.portfolio import (
+    fetch_portfolio_price_history,
+    optimize_portfolio_basket,
+    parse_portfolio_basket_file,
+)
+from stockwise.services.reports.investment_memo import generate_investment_memo
 from stockwise.viz.comparison import build_comparison_figures
 from stockwise.viz.forecast import build_forecast_figure
+from stockwise.viz.options import (
+    build_black_scholes_heatmap_figure,
+    build_iv_surface_3d_figure,
+    build_option_payoff_figure,
+)
+from stockwise.viz.portfolio import (
+    build_efficient_frontier_figure,
+    build_historical_portfolio_backtest_figure,
+    build_weights_allocation_figure,
+    build_weights_comparison_bar_figure,
+)
+from stockwise.viz.risk import build_conditional_volatility_figure
 from stockwise.viz.technical import build_technical_figure
 
-st.set_page_config(page_title="StockWise", page_icon="📈", layout="wide")
+st.set_page_config(page_title="StockWise", page_icon="🦉", layout="wide")
 
 st.markdown(
     """
@@ -101,8 +135,10 @@ def load_events_and_news(symbol: str) -> dict[str, Any]:
 
 
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
-def load_forecast(symbol: str, period: str, horizon: int, model: str):
-    return forecast_close(load_history(symbol, period), horizon=horizon, model=model)
+def load_forecast(symbol: str, period: str, horizon: int, model: str,
+                  support_price: float | None = None, resistance_price: float | None = None):
+    return forecast_close(load_history(symbol, period), horizon=horizon, model=model,
+                          support_price=support_price, resistance_price=resistance_price)
 
 
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
@@ -115,6 +151,40 @@ def load_closes(symbols: tuple, period: str) -> pd.DataFrame:
             s.index = s.index.tz_localize(None).normalize() if s.index.tz is not None else s.index.normalize()
             series[sym] = s[~s.index.duplicated(keep="last")]
     return pd.DataFrame(series)
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_investment_memo_pdf(symbol: str, period: str) -> bytes:
+    h = load_history(symbol, period)
+    q = load_quote(symbol)
+    f = load_fundamentals(symbol)
+    ev = load_events_and_news(symbol)
+    r = calculate_risk_metrics(h) if len(h) >= 10 else {}
+    ind = calculate_technical_indicators(h) if len(h) >= 15 else {}
+    return generate_investment_memo(
+        symbol=symbol,
+        history=h,
+        quote=q,
+        fundamentals=f,
+        risk_metrics=r,
+        indicators=ind,
+        events=ev,
+    )
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_options_surface(sym: str, base_v: float | None = None):
+    return get_options_surface_data(sym, base_volatility=base_v)
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_heatmap_matrix(sym: str, spot: float, dte: float, vol: float, r: float):
+    return get_pricing_heatmap_data(sym, spot_price=spot, dte_days=dte, volatility=vol, risk_free_rate=r)
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_portfolio_prices(tickers: tuple[str, ...], period: str) -> pd.DataFrame:
+    return fetch_portfolio_price_history(list(tickers), period=period)
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +243,130 @@ def render_guide(section_key: str) -> None:
             st.markdown(f"**{tip_title}**: {tip_desc}")
 
 
+def render_education_tab() -> None:
+    """Renderiza el centro educativo con glosario interactivo, guías de gráficas y recursos curados."""
+    st.subheader("🎓 Academia & Centro de Aprendizaje")
+    st.caption(
+        "Aprende a interpretar cada indicador, comprende la anatomía de las gráficas de StockWise "
+        "y explora recursos formativos seleccionados para invertir con criterio propio."
+    )
+
+    edu_section = st.radio(
+        "Sección Educativa",
+        ["📖 Glosario de Conceptos", "📊 Cómo Interpretar las Gráficas", "🌐 Recursos Recomendados"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+
+    if edu_section == "📖 Glosario de Conceptos":
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            q = st.text_input("🔍 Buscar término o métrica", placeholder="Ej: P/E, RSI, Drawdown, ROE, FCF...")
+        with c2:
+            cats = get_glossary_categories()
+            cat_options = {c["id"]: f"{c.get('icon', '📌')} {c['name']}" for c in cats}
+            selected_cat = st.selectbox("Categoría", list(cat_options.keys()), format_func=cat_options.get)
+
+        items = search_glossary(query=q, category_id=selected_cat)
+        if not items:
+            st.info("No se encontraron términos que coincidan con la búsqueda.")
+        else:
+            st.caption(f"Mostrando {len(items)} término(s)")
+            for item in items:
+                with st.expander(f"**{item['title']}** · `{item['friendly_label']}`", expanded=bool(q)):
+                    st.write(item["description"])
+                    st.markdown(f"💡 **Regla de oro / Cómo interpretarlo:**\n{item['rule_of_thumb']}")
+
+    elif edu_section == "📊 Cómo Interpretar las Gráficas":
+        guides = get_chart_guides()
+        if not guides:
+            st.info("Guías de gráficas no disponibles en este momento.")
+            return
+
+        guide_keys = list(guides.keys())
+        labels = {k: f"{guides[k].get('tab_ref', '')} — {guides[k].get('title', k)}" for k in guide_keys}
+        selected_key = st.selectbox("Selecciona la gráfica a estudiar", guide_keys, format_func=labels.get)
+        guide = guides[selected_key]
+
+        st.markdown(f"### {guide.get('title')}")
+        st.info(f"🎯 **Propósito:** {guide.get('purpose')}")
+
+        col_left, col_right = st.columns(2)
+        with col_left:
+            st.markdown("##### 👁️ ¿Qué estás viendo en pantalla?")
+            for point in guide.get("what_you_see", []):
+                st.markdown(f"• {point}")
+
+            st.markdown("##### 🔍 Señales clave a buscar")
+            for sig in guide.get("key_signals", []):
+                st.markdown(f"• {sig}")
+
+        with col_right:
+            st.markdown("##### ⚠️ Errores comunes de principiantes")
+            for err in guide.get("rookie_mistakes", []):
+                st.warning(f"❌ {err}")
+
+            tab_ref = guide.get("tab_ref", "")
+            st.caption(f"📍 Encuentras esta gráfica activa en la pestaña **{tab_ref}** de StockWise.")
+
+    elif edu_section == "🌐 Recursos Recomendados":
+        st.markdown("##### Recursos Pedagógicos Curados")
+        st.caption(
+            "Materiales de alta calidad didáctica, libres de sesgo comercial o promesas irreales. "
+            "La disponibilidad de los enlaces es auditada periódicamente mediante integración continua (CI/CD)."
+        )
+
+        f1, f2, f3 = st.columns(3)
+        with f1:
+            sel_cat = st.selectbox(
+                "Tema",
+                [
+                    "Todas",
+                    "Básicos & Principios de Inversión",
+                    "Análisis Fundamental & Valuación",
+                    "Análisis Técnico",
+                    "Riesgo & Portafolios",
+                    "Mercado Colombiano & Regional",
+                ],
+            )
+        with f2:
+            sel_level = st.selectbox("Nivel", ["Todos", "Principiante", "Intermedio"])
+        with f3:
+            sel_type = st.selectbox(
+                "Formato",
+                ["Todos", "Curso gratuito", "Libro fundamental", "Guía oficial", "Artículo pedagógico"],
+            )
+
+        resources = get_educational_resources(
+            category=sel_cat,
+            level=sel_level,
+            resource_type=sel_type,
+            only_active=False,
+        )
+
+        if not resources:
+            st.info("No se encontraron recursos con los filtros seleccionados.")
+        else:
+            st.caption(f"Mostrando {len(resources)} recurso(s)")
+            for r in resources:
+                with st.container(border=True):
+                    top_c1, top_c2 = st.columns([3, 1])
+                    with top_c1:
+                        st.markdown(f"#### [{r['title']}]({r['url']})")
+                        st.caption(f"Autor: **{r.get('author', '—')}** · Idioma: {r.get('language', 'Español')}")
+                    with top_c2:
+                        is_active = r.get("status") in ("active", "healthy", None)
+                        badge_status = "🟢 Enlace verificado" if is_active else "⚠️ En revisión"
+                        st.caption(f"**{r.get('type', '')}** · `{r.get('level', '')}`\n\n{badge_status}")
+
+                    st.write(r.get("description", ""))
+                    takeaways = r.get("key_takeaways", [])
+                    if takeaways:
+                        with st.expander("📌 ¿Qué aprenderás con este recurso?", expanded=False):
+                            for tk in takeaways:
+                                st.markdown(f"• {tk}")
+
+
 def pct_delta(value) -> str | None:
     return None if value is None else f"{value:+.2f}%"
 
@@ -180,7 +374,7 @@ def pct_delta(value) -> str | None:
 # ---------------------------------------------------------------------------
 # Barra lateral: selección del activo
 # ---------------------------------------------------------------------------
-st.sidebar.title("📈 StockWise")
+st.sidebar.title("🦉 StockWise")
 market = st.sidebar.radio("Mercado", ["🇨🇴 Colombia (BVC)", "🇺🇸 Estados Unidos", "🌐 Otro (ticker manual)"])
 
 if market.startswith("🇨🇴"):
@@ -221,6 +415,20 @@ if st.sidebar.button("🔄 Actualizar datos"):
     st.rerun()
 
 st.sidebar.divider()
+st.sidebar.markdown("##### 📄 Exportar Reporte")
+with st.sidebar.expander("Memorando Ejecutivo (PDF)", expanded=False):
+    st.caption("Reporte de 2 páginas con resumen, métricas, gráfico técnico, riesgo GARCH y pronóstico.")
+    if symbol:
+        _side_pdf_bytes = load_investment_memo_pdf(symbol, period)
+        st.download_button(
+            label="⬇️ Descargar PDF",
+            data=_side_pdf_bytes,
+            file_name=f"StockWise_Memo_{symbol}_{period}.pdf",
+            mime="application/pdf",
+            key="btn_pdf_sidebar",
+            use_container_width=True,
+        )
+
 learning_mode = st.sidebar.toggle(
     "Modo Aprendizaje 🎓",
     value=True,
@@ -244,7 +452,6 @@ with st.sidebar.expander("Ver descargo completo", expanded=False):
 # ---------------------------------------------------------------------------
 # Datos base
 # ---------------------------------------------------------------------------
-st.title(f"{symbol}")
 if not symbol:
     st.info("Selecciona o escribe un ticker en la barra lateral.")
     st.stop()
@@ -263,10 +470,35 @@ if hist.empty:
 
 quote = load_quote(symbol)
 currency = quote.get("currency") or ("COP" if is_colombian_ticker(symbol) else "USD")
-if quote.get("name"):
-    st.caption(f"{quote['name']} · moneda: {currency}")
 
-tabs = st.tabs(["📋 Resumen & Fundamental", "📊 Técnico", "⚖️ Riesgo", "🔮 Pronóstico", "📰 Eventos y Noticias", "🆚 Comparar"])
+col_title, col_pdf = st.columns([3, 1], vertical_alignment="bottom")
+with col_title:
+    st.title(f"{symbol}")
+    if quote.get("name"):
+        st.caption(f"{quote['name']} · moneda: {currency}")
+
+with col_pdf:
+    pdf_bytes = load_investment_memo_pdf(symbol, period)
+    st.download_button(
+        label="📥 Descargar Memorando PDF",
+        data=pdf_bytes,
+        file_name=f"StockWise_Memo_{symbol}_{period}.pdf",
+        mime="application/pdf",
+        help="Descarga un memorando institucional en PDF (2 páginas) con resumen ejecutivo, métricas clave, gráfico técnico, riesgo GARCH y pronóstico.",
+        use_container_width=True,
+    )
+
+tabs = st.tabs([
+    "📋 Resumen & Fundamental",
+    "📊 Técnico",
+    "⚖️ Riesgo",
+    "🔮 Pronóstico",
+    "⚡ Opciones & Volatilidad",
+    "💼 Portafolios",
+    "📰 Eventos y Noticias",
+    "🆚 Comparar",
+    "🎓 Academia & Glosario",
+])
 
 # ---------------------------------------------------------------------------
 # 1. Resumen y Fundamental
@@ -473,12 +705,49 @@ with tabs[2]:
         st.warning("Datos insuficientes para métricas de riesgo.")
     else:
         risk = calculate_risk_metrics(hist)
+        cond_risk = risk.get("conditional_risk")
+        garch_full = risk.get("_garch_full")
+
         vol_delta = interpret_volatility(risk["annualized_volatility_pct"]) if learning_mode else None
         dd_delta = interpret_drawdown(risk["max_drawdown_pct"]) if learning_mode else None
+
+        # Fila 1: Métricas de riesgo tradicionales
         c1, c2, c3 = st.columns(3)
         c1.metric("Retorno acumulado", f"{risk['cumulative_return_pct']:.2f}%", help=get_help("cumulative_return"))
-        c2.metric("Volatilidad anualizada", f"{risk['annualized_volatility_pct']:.2f}%", vol_delta, delta_color="off" if vol_delta else "normal", help=get_help("volatility"))
-        c3.metric("Máx. drawdown", f"{risk['max_drawdown_pct']:.2f}%", dd_delta, delta_color="off" if dd_delta else "normal", help=get_help("max_drawdown"))
+        c2.metric("Volatilidad histórica", f"{risk['annualized_volatility_pct']:.2f}% anual", vol_delta,
+                  delta_color="off" if vol_delta else "normal", help=get_help("volatility"))
+        c3.metric("Máx. drawdown", f"{risk['max_drawdown_pct']:.2f}%", dd_delta,
+                  delta_color="off" if dd_delta else "normal", help=get_help("max_drawdown"))
+
+        # Fila 2: Métricas dinámicas GARCH y VaR
+        if cond_risk:
+            var_m = cond_risk.get("var_metrics", {})
+            g1, g2, g3, g4 = st.columns(4)
+            current_vol = cond_risk["current_volatility_annualized_pct"]
+            hist_mean = cond_risk["historical_mean_volatility_annualized_pct"]
+            vol_diff = round(current_vol - hist_mean, 2)
+            g1.metric(
+                "Volatilidad actual (GARCH)",
+                f"{current_vol:.2f}%",
+                f"{vol_diff:+.2f}% vs media",
+                delta_color="inverse",
+                help=get_help("garch"),
+            )
+            g2.metric(
+                "Régimen de volatilidad",
+                cond_risk["volatility_regime"],
+                help=cond_risk.get("regime_description"),
+            )
+            g3.metric(
+                "VaR diario (95%)",
+                f"{var_m.get('var_95_1d_pct', 0):+.2f}%",
+                help=get_help("var_condicional"),
+            )
+            g4.metric(
+                "CVaR diario (Expected Shortfall)",
+                f"{var_m.get('cvar_95_1d_pct', 0):+.2f}%",
+                help=get_help("cvar_condicional"),
+            )
 
         close = hist["Close"].copy()
         close.index = close.index.tz_localize(None) if close.index.tz is not None else close.index
@@ -487,11 +756,53 @@ with tabs[2]:
 
         a, b = st.columns(2)
         fig_dd = go.Figure(go.Scatter(x=dd.index, y=dd.values, fill="tozeroy", line=dict(color="#ef5350")))
-        fig_dd.update_layout(title="Drawdown (%)", template="plotly_white", height=340)
+        fig_dd.update_layout(title="Drawdown (%)", template="plotly_white", height=320)
         a.plotly_chart(fig_dd, width="stretch")
         fig_h = go.Figure(go.Histogram(x=rets.values, nbinsx=50, marker_color="#1f77b4"))
-        fig_h.update_layout(title="Distribución de retornos diarios (%)", template="plotly_white", height=340)
+        fig_h.update_layout(title="Distribución de retornos diarios (%)", template="plotly_white", height=320)
         b.plotly_chart(fig_h, width="stretch")
+
+        # Gráfico dinámico de Volatilidad Condicional GARCH
+        if garch_full and "conditional_volatility_series" in garch_full:
+            fig_garch = build_conditional_volatility_figure(symbol, garch_full)
+            st.plotly_chart(fig_garch, width="stretch")
+
+            with st.expander("Detalle del Modelo GARCH, VaR y Expected Shortfall"):
+                col_va, col_vb = st.columns(2)
+                with col_va:
+                    st.write("**Value-at-Risk (VaR) y CVaR Condicionales:**")
+                    var_table = pd.DataFrame({
+                        "Métrica": [
+                            "VaR 95% (1 día)",
+                            "VaR 99% (1 día)",
+                            "Expected Shortfall (CVaR) 95% (1 día)",
+                            "Expected Shortfall (CVaR) 99% (1 día)",
+                            f"VaR 95% ({cond_risk['var_metrics']['horizon_days']} días)",
+                            f"CVaR 95% ({cond_risk['var_metrics']['horizon_days']} días)",
+                        ],
+                        "Pérdida esperada": [
+                            f"{var_m.get('var_95_1d_pct'):+.2f}%",
+                            f"{var_m.get('var_99_1d_pct'):+.2f}%",
+                            f"{var_m.get('cvar_95_1d_pct'):+.2f}%",
+                            f"{var_m.get('cvar_99_1d_pct'):+.2f}%",
+                            f"{var_m.get('var_95_horizon_pct'):+.2f}%",
+                            f"{var_m.get('cvar_95_horizon_pct'):+.2f}%",
+                        ],
+                    })
+                    st.dataframe(var_table, width="stretch", hide_index=True)
+
+                with col_vb:
+                    st.write("**Parámetros del Modelo y Persistencia:**")
+                    st.write(f"- **Modelo:** `{cond_risk.get('model')}`")
+                    st.write(rf"- **Persistencia ($\alpha + \beta + 0.5\gamma$):** `{cond_risk.get('persistence')}`")
+                    if cond_risk.get("half_life_days"):
+                        st.write(f"- **Vida media del shock:** `{cond_risk.get('half_life_days')} ruedas`")
+                    st.write(
+                        f"- **Volatilidad proyectada (30d):** "
+                        f"`{cond_risk.get('projected_volatility_30d_annualized_pct')}% anual`"
+                    )
+                    if cond_risk.get("parameters"):
+                        st.json(cond_risk["parameters"])
 
         br = {k.replace("_pct", "").replace("_", " "): (None if v is None else f"{v:+.2f}%")
               for k, v in risk["returns_breakdown"].items()}
@@ -504,22 +815,38 @@ with tabs[2]:
 # 4. Pronóstico
 # ---------------------------------------------------------------------------
 with tabs[3]:
-    st.caption("Serie temporal del log-precio con ARIMA/ETS, intervalo del 95% y backtest contra el benchmark ingenuo.")
+    st.caption("Serie temporal del log-precio con ARIMA, ETS, Theta y Ensamble, validada por backtest y simulación Monte Carlo.")
     c1, c2 = st.columns(2)
     horizon = c1.slider("Horizonte (ruedas)", 5, 120, 30, step=5)
-    model = c2.selectbox("Modelo", MODELS, help="'auto' elige el de menor error en el backtest.")
-    if st.button("Calcular pronóstico", type="primary"):
-        st.session_state["fc_key"] = (symbol, period, horizon, model)
+    model = c2.selectbox("Modelo", MODELS, help="'auto' elige el de menor error en backtest; 'ensemble' combina ARIMA+ETS+Theta.")
 
-    if st.session_state.get("fc_key") == (symbol, period, horizon, model):
+    with st.expander("Niveles clave para Monte Carlo (Opcional)", expanded=False):
+        cs1, cs2 = st.columns(2)
+        sup_in = cs1.number_input("Soporte a evaluar", min_value=0.0, value=0.0, step=1.0,
+                                  help="Dejar en 0.0 para detectar el mínimo reciente automáticamente.")
+        res_in = cs2.number_input("Resistencia a evaluar", min_value=0.0, value=0.0, step=1.0,
+                                  help="Dejar en 0.0 para detectar el máximo reciente automáticamente.")
+
+    support_val = float(sup_in) if sup_in > 0 else None
+    resistance_val = float(res_in) if res_in > 0 else None
+
+    if st.button("Calcular pronóstico", type="primary"):
+        st.session_state["fc_key"] = (symbol, period, horizon, model, support_val, resistance_val)
+
+    if st.session_state.get("fc_key") == (symbol, period, horizon, model, support_val, resistance_val):
         try:
-            with st.spinner("Ajustando modelos…"):
-                result = load_forecast(symbol, period, horizon, model)
+            with st.spinner("Ajustando modelos y ejecutando simulación Monte Carlo…"):
+                result = load_forecast(symbol, period, horizon, model, support_val, resistance_val)
         except (ValueError, RuntimeError) as exc:
             st.error(str(exc))
         else:
             s, bt = result["summary"], result["backtest"]
             end = s["forecast_end"]
+            mc_sum = s.get("monte_carlo", {})
+            probs = mc_sum.get("probabilities", {})
+            sup_a = mc_sum.get("support_analysis", {})
+            res_a = mc_sum.get("resistance_analysis", {})
+
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Último precio", fmt_money(s["last_price"], currency), help=get_help("price"))
             m2.metric(f"Pronóstico {s['forecast_end_date']}", fmt_money(end["mean"], currency),
@@ -528,20 +855,55 @@ with tabs[3]:
                       help="Intervalo de confianza al 95%: rango estadístico donde probablemente se moverá el precio.")
             m4.metric("Habilidad vs. ingenuo", f"{bt['skill_vs_naive_pct']:+.2f}%",
                       help="Mejora porcentual en precisión del modelo respecto a predecir que el precio no cambiará.")
+
+            if mc_sum:
+                mc1, mc2, mc3, mc4 = st.columns(4)
+                mc1.metric("P(Alza en horizonte)", f"{probs.get('prob_gain_pct', 0)}%",
+                           help="Probabilidad de que el precio final supere el actual (simulación GBM).")
+                mc2.metric(f"P(Toque Res. {res_a.get('price', 0):,.2f})",
+                           f"{res_a.get('prob_touch_during_horizon_pct', 0)}%",
+                           help="Probabilidad de tocar la resistencia en cualquier momento del horizonte.")
+                mc3.metric(f"P(Toque Sop. {sup_a.get('price', 0):,.2f})",
+                           f"{sup_a.get('prob_touch_during_horizon_pct', 0)}%",
+                           help="Probabilidad de tocar el soporte en cualquier momento del horizonte.")
+                mc4.metric("Vol. Monte Carlo (anual)", f"{mc_sum.get('volatility_annualized_pct', 0)}%",
+                           help="Volatilidad anualizada calibrada para el Movimiento Browniano Geométrico.")
+
             st.plotly_chart(build_forecast_figure(symbol, result, currency), width="stretch")
             for w in s["warnings"]:
                 st.warning(w)
-            with st.expander("Detalle del modelo y backtest"):
-                st.write(f"**Modelo:** {s['model_selected']} ({s['selection']})")
+
+            with st.expander("Detalle del modelo, ensamble y backtest"):
+                st.write(f"**Modelo seleccionado:** {s['model_selected']} ({s['selection']})")
+                if s.get("ensemble_weights"):
+                    st.write("**Ponderaciones del ensamble (inversa de MAE):**", s["ensemble_weights"])
                 st.write("**Estacionariedad del log-precio (ADF):**", s["stationarity_log_price"])
                 st.write("**Backtest:**", {k: v for k, v in s["backtest"].items()})
                 if s["backtest_all_models"]:
-                    st.write("**Comparación de modelos:**")
+                    st.write("**Comparación de modelos en backtest:**")
                     st.dataframe(pd.DataFrame(s["backtest_all_models"]).T, width="stretch")
                 fc = result["forecast"].round(2)
                 fc.index = fc.index.strftime("%Y-%m-%d")
                 st.dataframe(fc.rename(columns={"mean": "Pronóstico", "lower": "Inf. 95%", "upper": "Sup. 95%"}),
                              width="stretch")
+
+            if mc_sum:
+                with st.expander("Detalle de Simulación Monte Carlo (Percentiles y Probabilidades)"):
+                    st.write("**Distribución de precios proyectados al final del horizonte:**")
+                    p_df = pd.DataFrame([mc_sum.get("percentiles_end", {})], index=["Precio proyectado"])
+                    st.dataframe(p_df, width="stretch")
+
+                    st.write("**Probabilidades de escenarios de variación:**")
+                    prob_df = pd.DataFrame({
+                        "Escenario": ["Subida >= +5%", "Subida >= +10%", "Caída <= -5%", "Caída <= -10%"],
+                        "Probabilidad": [
+                            f"{probs.get('prob_gain_5pct', 0)}%",
+                            f"{probs.get('prob_gain_10pct', 0)}%",
+                            f"{probs.get('prob_loss_5pct', 0)}%",
+                            f"{probs.get('prob_loss_10pct', 0)}%",
+                        ],
+                    })
+                    st.dataframe(prob_df, width="stretch", hide_index=True)
     else:
         st.info("Ajusta los parámetros y pulsa **Calcular pronóstico**.")
 
@@ -549,9 +911,351 @@ with tabs[3]:
         render_guide("forecast")
 
 # ---------------------------------------------------------------------------
-# 5. Eventos y Noticias
+# 5. Opciones & Volatilidad
 # ---------------------------------------------------------------------------
 with tabs[4]:
+    st.markdown("### ⚡ Opciones Financieras & Superficies de Volatilidad")
+    st.caption(
+        "Modelado analítico de derivados financieros mediante Black-Scholes-Merton (1973), "
+        "calibración de la estructura temporal de volatilidad y análisis tridimensional de la sonrisa de volatilidad (IV Smile)."
+    )
+
+    spot_val = float(quote.get("price") or (hist["Close"].iloc[-1] if not hist.empty else 100.0))
+
+    sub_tabs = st.tabs([
+        "🌐 Superficie 3D de Volatilidad (IV)",
+        "🗺️ Mapas de Calor Black-Scholes",
+        "🧮 Calculadora de Griegas & Payoff",
+    ])
+
+    # 1. Superficie 3D
+    with sub_tabs[0]:
+        col_s1, col_s2 = st.columns([3, 1])
+        with col_s2:
+            force_synthetic = st.checkbox(
+                "Simular superficie paramétrica",
+                value=is_colombian_ticker(symbol),
+                help="Genera la superficie con modelo paramétrico de sonrisa de volatilidad (ideal para acciones colombianas o pruebas hipotéticas).",
+            )
+            sim_vol = st.slider(
+                "Volatilidad base de referencia (%)",
+                min_value=10.0,
+                max_value=120.0,
+                value=30.0,
+                step=1.0,
+            ) / 100.0
+
+        with col_s1:
+            with st.spinner("Construyendo superficie 3D de volatilidad implícita…"):
+                if force_synthetic:
+                    surf_data = generate_parametric_iv_surface(spot_price=spot_val, base_vol=sim_vol, symbol=symbol)
+                else:
+                    surf_data = load_options_surface(symbol, base_v=sim_vol)
+
+            src_label = "⚪ Modelo Paramétrico (Sonrisa y Estructura Temporal)" if surf_data.is_synthetic else "🟢 Cotizaciones Reales de Mercado (Yahoo Finance)"
+            st.caption(f"Fuente de datos: **{src_label}** · Strikes evaluados: **{len(surf_data.strikes)}** · Puntos: **{surf_data.raw_points_count}**")
+
+            kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+            kpi1.metric("Spot Subyacente", fmt_price(surf_data.spot_price, currency))
+            kpi2.metric("IV Mínima", f"{surf_data.min_iv_pct:.1f}%")
+            kpi3.metric("IV Máxima", f"{surf_data.max_iv_pct:.1f}%")
+            kpi4.metric("DTE Evaluado", f"{surf_data.dtes[0]:.0f} a {surf_data.dtes[-1]:.0f} d" if surf_data.dtes else "—")
+
+            fig_surface = build_iv_surface_3d_figure(surf_data)
+            st.plotly_chart(fig_surface, use_container_width=True)
+
+    # 2. Mapas de Calor
+    with sub_tabs[1]:
+        c_h1, c_h2, c_h3, c_h4 = st.columns(4)
+        with c_h1:
+            hm_view = st.selectbox(
+                "Métrica a Visualizar",
+                [
+                    ("call_prices", "Primas Teóricas CALL ($)"),
+                    ("put_prices", "Primas Teóricas PUT ($)"),
+                    ("delta_call", "Delta CALL Δ (Probabilidad ITM)"),
+                    ("call_vol", "CALL vs Expansión de Volatilidad"),
+                    ("put_vol", "PUT vs Expansión de Volatilidad"),
+                ],
+                format_func=lambda x: x[1],
+            )[0]
+        with c_h2:
+            hm_dte = st.slider("Días al Vencimiento (DTE)", min_value=7, max_value=180, value=30, step=1)
+        with c_h3:
+            hm_vol = st.slider("Volatilidad Anualizada (%)", min_value=10.0, max_value=120.0, value=30.0, step=2.0) / 100.0
+        with c_h4:
+            hm_rf = st.slider("Tasa Libre de Riesgo (%)", min_value=0.0, max_value=15.0, value=4.5, step=0.25) / 100.0
+
+        hm_data = load_heatmap_matrix(symbol, spot_val, float(hm_dte), float(hm_vol), float(hm_rf))
+        fig_heat = build_black_scholes_heatmap_figure(hm_data, view_type=hm_view)
+        st.plotly_chart(fig_heat, use_container_width=True)
+
+    # 3. Calculadora de Griegas & Payoff
+    with sub_tabs[2]:
+        cc1, cc2, cc3, cc4 = st.columns(4)
+        with cc1:
+            calc_type = st.radio("Tipo de Contrato", ["CALL", "PUT"], horizontal=True)
+            calc_pos = st.radio("Posición", ["Compra (Long)", "Venta (Short)"], horizontal=True)
+        with cc2:
+            calc_strike = st.number_input(
+                f"Strike / Precio Ejercicio ({currency})",
+                value=float(round(spot_val, 2)),
+                step=1.0 if currency == "USD" else 50.0,
+            )
+        with cc3:
+            calc_dte = st.number_input("Días al Vencimiento (DTE)", min_value=1, max_value=730, value=30)
+        with cc4:
+            calc_vol = st.number_input("Volatilidad Implícita / Estimada (%)", min_value=5.0, max_value=250.0, value=30.0, step=1.0) / 100.0
+
+        contract_res = evaluate_contract(
+            spot=spot_val,
+            strike=calc_strike,
+            dte_days=float(calc_dte),
+            volatility=calc_vol,
+            risk_free_rate=0.045,
+            option_type=OptionType(calc_type.lower()),
+        )
+
+        st.divider()
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric(f"Prima Teórica {calc_type}", fmt_price(contract_res.price, currency))
+        m2.metric("Valor Intrínseco", fmt_price(contract_res.intrinsic_value, currency))
+        m3.metric("Valor Temporal", fmt_price(contract_res.time_value, currency))
+        m4.metric("Estado Moneyness", contract_res.moneyness_status)
+
+        st.caption("⚡ **Griegas Analíticas de Primer y Segundo Orden (Sensibilidad):**")
+        g1, g2, g3, g4, g5 = st.columns(5)
+        g1.metric("Delta (Δ)", f"{contract_res.greeks.delta:+.4f}", help="Cambio de la prima ante un movimiento de $1 en el activo.")
+        g2.metric("Gamma (Γ)", f"{contract_res.greeks.gamma:.5f}", help="Curvatura: cambio del Delta ante un movimiento de $1.")
+        g3.metric("Theta Diario (Θ)", fmt_price(contract_res.greeks.theta_daily, currency), help="Erosión temporal: pérdida diaria de valor por el paso de las ruedas.")
+        g4.metric("Vega por 1% (ν)", fmt_price(contract_res.greeks.vega_1pct, currency), help="Sensibilidad ante una subida de 1 punto porcentual en volatilidad.")
+        g5.metric("Rho por 1% (ρ)", fmt_price(contract_res.greeks.rho_1pct, currency), help="Sensibilidad ante un incremento del 1% en la tasa libre de riesgo.")
+
+        pos_str = "long" if "Compra" in calc_pos else "short"
+        fig_pay = build_option_payoff_figure(
+            spot=spot_val,
+            strike=calc_strike,
+            premium=contract_res.price,
+            option_type=calc_type.lower(),
+            position=pos_str,
+        )
+        st.plotly_chart(fig_pay, use_container_width=True)
+
+    if learning_mode:
+        render_guide("options")
+
+# ---------------------------------------------------------------------------
+# 6. Portafolios
+# ---------------------------------------------------------------------------
+with tabs[5]:
+    st.markdown("### 💼 Optimización de Portafolios & Asignación Cuantitativa")
+    st.caption(
+        "Teoría Moderna de Portafolios (Markowitz) y Paridad de Riesgo Jerárquica (HRP) vía PyPortfolioOpt. "
+        "Construye la frontera eficiente, simula carteras Monte Carlo y optimiza la asignación de pesos con límites de concentración."
+    )
+
+    colombian_symbols = [o["symbol"] for o in list_colombian_stocks()]
+    default_basket = (
+        [symbol, "ISA.CL", "BCOLOMBIA.CL", "GRUPOARGOS.CL", "NUTRESA.CL"]
+        if is_colombian_ticker(symbol)
+        else [symbol, "MSFT", "GOOGL", "AMZN", "NVDA", "SPY"]
+    )
+    default_basket = list(dict.fromkeys(default_basket))
+
+    port_col1, port_col2 = st.columns([1, 2])
+    with port_col1:
+        st.markdown("#### ⚙️ Parámetros de la Cartera")
+        basket_input_mode = st.radio(
+            "Modo de selección de activos",
+            ["Selección interactiva", "Cargar archivo (CSV / TXT)"],
+            horizontal=True,
+        )
+
+        selected_portfolio_tickers: list[str] = []
+
+        if basket_input_mode == "Selección interactiva":
+            port_universe = sorted(set(colombian_symbols + POPULAR_US + [symbol]))
+            chosen_ticks = st.multiselect(
+                "Selecciona los activos de la cesta",
+                port_universe,
+                default=[t for t in default_basket if t in port_universe][:5],
+            )
+            extra_port_ticks = st.text_input(
+                "Agregar otros tickers (separados por coma)",
+                placeholder="TSLA, JPM, GEB.CL",
+            )
+            parsed_extras = [resolve_ticker(t) for t in extra_port_ticks.split(",") if t.strip()]
+            selected_portfolio_tickers = list(dict.fromkeys(chosen_ticks + parsed_extras))
+        else:
+            uploaded_file = st.file_uploader(
+                "Subir archivo CSV o TXT con tu cesta",
+                type=["csv", "txt"],
+                help="Soporta CSV con columnas Ticker y Peso/Cantidad, o texto plano con un ticker por línea.",
+            )
+            if uploaded_file is not None:
+                parsed_items = parse_portfolio_basket_file(uploaded_file.getvalue())
+                selected_portfolio_tickers = list(dict.fromkeys([sym for sym, _ in parsed_items]))
+                if selected_portfolio_tickers:
+                    st.success(f"Se identificaron {len(selected_portfolio_tickers)} activos: {', '.join(selected_portfolio_tickers)}")
+                else:
+                    st.error("No se detectaron tickers válidos en el archivo proporcionado.")
+            else:
+                st.info("Sube un archivo o cambia a selección interactiva.")
+                with st.expander("📄 Ejemplo de formato CSV / TXT"):
+                    st.code("Ticker,Peso\nAAPL,0.25\nMSFT,0.25\nNVDA,0.30\nSPY,0.20", language="csv")
+
+        opt_obj_label = st.selectbox(
+            "Objetivo de Optimización",
+            [
+                "Maximización de Sharpe (Tangencia)",
+                "Mínima Varianza Global",
+                "Paridad de Riesgo Jerárquica (HRP)",
+                "Equiponderada (1/N)",
+            ],
+            index=0,
+            help="Elige la estrategia cuantitativa de optimización de pesos.",
+        )
+        obj_map = {
+            "Maximización de Sharpe (Tangencia)": OptimizationObjective.MAX_SHARPE.value,
+            "Mínima Varianza Global": OptimizationObjective.MIN_VOLATILITY.value,
+            "Paridad de Riesgo Jerárquica (HRP)": OptimizationObjective.RISK_PARITY.value,
+            "Equiponderada (1/N)": OptimizationObjective.EQUAL_WEIGHT.value,
+        }
+        selected_obj = obj_map[opt_obj_label]
+
+        port_period = st.select_slider(
+            "Ventana histórica de datos",
+            options=["1y", "2y", "3y", "5y"],
+            value="2y",
+            help="Período de cotizaciones para calcular retornos esperados y la matriz de covarianza.",
+        )
+
+        rfr_slider = st.slider(
+            "Tasa libre de riesgo anualizada (Rf %)",
+            min_value=0.0,
+            max_value=12.0,
+            value=4.5,
+            step=0.25,
+            help="Rendimiento del activo sin riesgo (ej: bonos del tesoro a 10 años).",
+        ) / 100.0
+
+        max_weight_slider = st.slider(
+            "Peso máximo por activo (Límite superior %)",
+            min_value=15,
+            max_value=100,
+            value=100,
+            step=5,
+            help="Evita que un solo activo acapare toda la cartera, forzando diversificación.",
+        ) / 100.0
+
+    with port_col2:
+        if len(selected_portfolio_tickers) < 2:
+            st.info("📌 Por favor selecciona o sube al menos dos (2) activos para ejecutar la optimización.")
+        else:
+            with st.spinner("Descargando precios sincronizados y calculando covarianza Ledoit-Wolf..."):
+                prices_df = load_portfolio_prices(tuple(selected_portfolio_tickers), port_period)
+
+            missing_port = [t for t in selected_portfolio_tickers if t not in prices_df.columns]
+            if missing_port:
+                st.warning(f"Sin cotizaciones suficientes en el período para: {', '.join(missing_port)}")
+
+            valid_assets = [t for t in selected_portfolio_tickers if t in prices_df.columns]
+            if len(valid_assets) < 2:
+                st.error("No hay suficientes activos con datos históricos comunes para optimizar la cartera.")
+            else:
+                try:
+                    with st.spinner("Optimizando asignación de capital vía PyPortfolioOpt..."):
+                        port_result = optimize_portfolio_basket(
+                            tickers=valid_assets,
+                            objective=selected_obj,
+                            period=port_period,
+                            risk_free_rate=rfr_slider,
+                            max_weight=max_weight_slider,
+                            prices_df=prices_df[valid_assets],
+                        )
+
+                    # KPIs Superiores
+                    k1, k2, k3, k4 = st.columns(4)
+                    k1.metric(
+                        "Retorno Anual Esperado",
+                        f"{port_result.expected_annual_return_pct:+.2f}%",
+                        help="Rendimiento anualizado medio esperado de la cartera óptima.",
+                    )
+                    k2.metric(
+                        "Volatilidad Anualizada",
+                        f"{port_result.annual_volatility_pct:.2f}%",
+                        help="Desviación típica anualizada esperada (riesgo total).",
+                    )
+                    k3.metric(
+                        "Sharpe Ratio",
+                        f"{port_result.sharpe_ratio:.2f}",
+                        help="Rendimiento excedente sobre la tasa libre de riesgo dividido por volatilidad.",
+                    )
+                    k4.metric(
+                        "N° Efectivo de Activos",
+                        f"{port_result.effective_n_assets:.2f} / {len(valid_assets)}",
+                        help="Inverso del índice Herfindahl (1 / sum(w^2)). Mide la diversificación real alcanzada.",
+                    )
+
+                    # Subtabs de visualización
+                    port_subtabs = st.tabs([
+                        "📈 Frontera Eficiente & Monte Carlo",
+                        "🍩 Distribución de Pesos & Rebalanceo",
+                        "📉 Backtest Histórico Acumulado",
+                    ])
+
+                    with port_subtabs[0]:
+                        fig_ef = build_efficient_frontier_figure(port_result)
+                        st.plotly_chart(fig_ef, use_container_width=True)
+
+                    with port_subtabs[1]:
+                        d_col1, d_col2 = st.columns([1, 1])
+                        with d_col1:
+                            fig_donut = build_weights_allocation_figure(port_result)
+                            st.plotly_chart(fig_donut, use_container_width=True)
+                        with d_col2:
+                            fig_bar = build_weights_comparison_bar_figure(port_result)
+                            st.plotly_chart(fig_bar, use_container_width=True)
+
+                        # Tabla de asignación
+                        rows = []
+                        for sym_w, w in sorted(port_result.weights.items(), key=lambda x: x[1], reverse=True):
+                            m = port_result.asset_metrics.get(sym_w, {})
+                            rows.append({
+                                "Activo": sym_w,
+                                "Peso Óptimo": f"{w * 100:.2f}%",
+                                "Retorno Anual": f"{m.get('return_pct', 0.0):+.2f}%",
+                                "Volatilidad Anual": f"{m.get('vol_pct', 0.0):.2f}%",
+                            })
+                        weights_df = pd.DataFrame(rows)
+                        st.dataframe(weights_df, hide_index=True, width="stretch")
+
+                        # Botón para descargar CSV de asignación de pesos
+                        csv_weights_data = weights_df.to_csv(index=False).encode("utf-8")
+                        st.download_button(
+                            label="📥 Descargar Asignación de Pesos (CSV)",
+                            data=csv_weights_data,
+                            file_name=f"stockwise_portfolio_allocation_{selected_obj}.csv",
+                            mime="text/csv",
+                        )
+
+                    with port_subtabs[2]:
+                        fig_backtest = build_historical_portfolio_backtest_figure(
+                            prices=prices_df[valid_assets],
+                            weights=port_result.weights,
+                        )
+                        st.plotly_chart(fig_backtest, use_container_width=True)
+
+                except Exception as exc:
+                    st.error(f"Error durante la optimización de la cartera: {exc}")
+
+    if learning_mode:
+        render_guide("portfolio")
+
+# ---------------------------------------------------------------------------
+# 7. Eventos y Noticias
+# ---------------------------------------------------------------------------
+with tabs[6]:
     with st.spinner("Consultando eventos corporativos y noticias recientes…"):
         events_info = load_events_and_news(symbol)
 
@@ -641,9 +1345,9 @@ with tabs[4]:
         render_guide("events_and_news")
 
 # ---------------------------------------------------------------------------
-# 6. Comparar
+# 8. Comparar
 # ---------------------------------------------------------------------------
-with tabs[5]:
+with tabs[7]:
     colombian = [o["symbol"] for o in list_colombian_stocks()]
     universe = sorted(set(colombian + POPULAR_US + [symbol]))
     default = [symbol] + [t for t in (["ISA.CL", "ECOPETROL.CL"] if is_colombian_ticker(symbol) else ["MSFT", "SPY"])
@@ -684,6 +1388,12 @@ with tabs[5]:
 
     if learning_mode:
         render_guide("comparison")
+
+# ---------------------------------------------------------------------------
+# 9. Academia & Glosario
+# ---------------------------------------------------------------------------
+with tabs[8]:
+    render_education_tab()
 
 # ---------------------------------------------------------------------------
 # Pie de página global (Descargo de Responsabilidad)

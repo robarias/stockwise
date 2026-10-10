@@ -52,3 +52,14 @@ def test_comparison_without_common_dates_raises():
     b = make_ohlcv(n=20, start="2024-01-01")["Close"].rename("B")
     with pytest.raises(ValueError):
         build_comparison_figures(pd.concat([a, b], axis=1))
+
+
+def test_conditional_volatility_figure(ohlcv):
+    from stockwise.analytics.garch import calculate_garch_risk
+    from stockwise.viz.risk import build_conditional_volatility_figure
+
+    garch_res = calculate_garch_risk(ohlcv, horizon=20)
+    fig = build_conditional_volatility_figure("TEST", garch_res)
+    assert isinstance(fig, go.Figure)
+    trace_names = {t.name for t in fig.data if t.name}
+    assert "Volatilidad Condicional GARCH" in trace_names
