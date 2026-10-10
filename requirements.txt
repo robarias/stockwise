@@ -10,3 +10,4 @@ plotly>=5.18.0
 streamlit>=1.40.0
 fpdf2>=2.8.0
 matplotlib>=3.8.0
+pyportfolioopt>=1.6.0

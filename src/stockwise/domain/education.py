@@ -530,6 +530,16 @@ SECTION_GUIDES: dict[str, dict[str, Any]] = {
             ("3. Primas y Mapas de Calor", "Permiten explorar visualmente qué combinaciones de strike y precio spot ofrecen mejor balance antes de estructurar una estrategia."),
         ],
     },
+    "portfolio": {
+        "title": "💡 Guía para Principiantes: ¿Cómo optimizar un Portafolio de Inversión?",
+        "intro": "La Teoría Moderna de Portafolios (Markowitz) demuestra que diversificar con las proporciones adecuadas maximiza el retorno esperado reduciendo el riesgo conjunto.",
+        "tips": [
+            ("1. Maximización de Sharpe (Tangencia)", "Busca la cartera que ofrece el mayor rendimiento por cada unidad de volatilidad asumida. Es la opción predilecta para crecimiento equilibrado."),
+            ("2. Mínima Varianza Global", "Minimiza la volatilidad total sin importar el retorno esperado. Ideal para perfiles conservadores que priorizan preservar capital."),
+            ("3. Paridad de Riesgo Jerárquica (HRP)", "Asigna pesos de modo que cada grupo de activos aporte una cuota equilibrada de riesgo, evitando sobreconcentración y fallas de inversión de matrices."),
+            ("4. Frontera Eficiente y Número Efectivo", "La curva representa las combinaciones imbatibles de riesgo-retorno; el Número Efectivo de Activos (1 / sum(w^2)) mide la diversificación real alcanzada."),
+        ],
+    },
     "comparison": {
         "title": "💡 Guía para Principiantes: ¿Cómo comparar activos entre sí?",
         "intro": "Comparar múltiples acciones permite descubrir líderes relativos y optimizar la diversificación.",

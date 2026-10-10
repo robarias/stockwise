@@ -50,10 +50,16 @@ from stockwise.domain.education import (
 )
 from stockwise.domain.markets import is_colombian_ticker, resolve_ticker
 from stockwise.domain.options import OptionType
+from stockwise.domain.portfolio import OptimizationObjective
 from stockwise.interfaces.mcp import server  # TODO(fase 2): reemplazar por stockwise.services
 from stockwise.services.options import (
     get_options_surface_data,
     get_pricing_heatmap_data,
+)
+from stockwise.services.portfolio import (
+    fetch_portfolio_price_history,
+    optimize_portfolio_basket,
+    parse_portfolio_basket_file,
 )
 from stockwise.services.reports.investment_memo import generate_investment_memo
 from stockwise.viz.comparison import build_comparison_figures
@@ -62,6 +68,12 @@ from stockwise.viz.options import (
     build_black_scholes_heatmap_figure,
     build_iv_surface_3d_figure,
     build_option_payoff_figure,
+)
+from stockwise.viz.portfolio import (
+    build_efficient_frontier_figure,
+    build_historical_portfolio_backtest_figure,
+    build_weights_allocation_figure,
+    build_weights_comparison_bar_figure,
 )
 from stockwise.viz.risk import build_conditional_volatility_figure
 from stockwise.viz.technical import build_technical_figure
@@ -168,6 +180,11 @@ def load_options_surface(sym: str, base_v: float | None = None):
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
 def load_heatmap_matrix(sym: str, spot: float, dte: float, vol: float, r: float):
     return get_pricing_heatmap_data(sym, spot_price=spot, dte_days=dte, volatility=vol, risk_free_rate=r)
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_portfolio_prices(tickers: tuple[str, ...], period: str) -> pd.DataFrame:
+    return fetch_portfolio_price_history(list(tickers), period=period)
 
 
 # ---------------------------------------------------------------------------
@@ -477,6 +494,7 @@ tabs = st.tabs([
     "⚖️ Riesgo",
     "🔮 Pronóstico",
     "⚡ Opciones & Volatilidad",
+    "💼 Portafolios",
     "📰 Eventos y Noticias",
     "🆚 Comparar",
     "🎓 Academia & Glosario",
@@ -1027,9 +1045,217 @@ with tabs[4]:
         render_guide("options")
 
 # ---------------------------------------------------------------------------
-# 6. Eventos y Noticias
+# 6. Portafolios
 # ---------------------------------------------------------------------------
 with tabs[5]:
+    st.markdown("### 💼 Optimización de Portafolios & Asignación Cuantitativa")
+    st.caption(
+        "Teoría Moderna de Portafolios (Markowitz) y Paridad de Riesgo Jerárquica (HRP) vía PyPortfolioOpt. "
+        "Construye la frontera eficiente, simula carteras Monte Carlo y optimiza la asignación de pesos con límites de concentración."
+    )
+
+    colombian_symbols = [o["symbol"] for o in list_colombian_stocks()]
+    default_basket = (
+        [symbol, "ISA.CL", "BCOLOMBIA.CL", "GRUPOARGOS.CL", "NUTRESA.CL"]
+        if is_colombian_ticker(symbol)
+        else [symbol, "MSFT", "GOOGL", "AMZN", "NVDA", "SPY"]
+    )
+    default_basket = list(dict.fromkeys(default_basket))
+
+    port_col1, port_col2 = st.columns([1, 2])
+    with port_col1:
+        st.markdown("#### ⚙️ Parámetros de la Cartera")
+        basket_input_mode = st.radio(
+            "Modo de selección de activos",
+            ["Selección interactiva", "Cargar archivo (CSV / TXT)"],
+            horizontal=True,
+        )
+
+        selected_portfolio_tickers: list[str] = []
+
+        if basket_input_mode == "Selección interactiva":
+            port_universe = sorted(set(colombian_symbols + POPULAR_US + [symbol]))
+            chosen_ticks = st.multiselect(
+                "Selecciona los activos de la cesta",
+                port_universe,
+                default=[t for t in default_basket if t in port_universe][:5],
+            )
+            extra_port_ticks = st.text_input(
+                "Agregar otros tickers (separados por coma)",
+                placeholder="TSLA, JPM, GEB.CL",
+            )
+            parsed_extras = [resolve_ticker(t) for t in extra_port_ticks.split(",") if t.strip()]
+            selected_portfolio_tickers = list(dict.fromkeys(chosen_ticks + parsed_extras))
+        else:
+            uploaded_file = st.file_uploader(
+                "Subir archivo CSV o TXT con tu cesta",
+                type=["csv", "txt"],
+                help="Soporta CSV con columnas Ticker y Peso/Cantidad, o texto plano con un ticker por línea.",
+            )
+            if uploaded_file is not None:
+                parsed_items = parse_portfolio_basket_file(uploaded_file.getvalue())
+                selected_portfolio_tickers = list(dict.fromkeys([sym for sym, _ in parsed_items]))
+                if selected_portfolio_tickers:
+                    st.success(f"Se identificaron {len(selected_portfolio_tickers)} activos: {', '.join(selected_portfolio_tickers)}")
+                else:
+                    st.error("No se detectaron tickers válidos en el archivo proporcionado.")
+            else:
+                st.info("Sube un archivo o cambia a selección interactiva.")
+                with st.expander("📄 Ejemplo de formato CSV / TXT"):
+                    st.code("Ticker,Peso\nAAPL,0.25\nMSFT,0.25\nNVDA,0.30\nSPY,0.20", language="csv")
+
+        opt_obj_label = st.selectbox(
+            "Objetivo de Optimización",
+            [
+                "Maximización de Sharpe (Tangencia)",
+                "Mínima Varianza Global",
+                "Paridad de Riesgo Jerárquica (HRP)",
+                "Equiponderada (1/N)",
+            ],
+            index=0,
+            help="Elige la estrategia cuantitativa de optimización de pesos.",
+        )
+        obj_map = {
+            "Maximización de Sharpe (Tangencia)": OptimizationObjective.MAX_SHARPE.value,
+            "Mínima Varianza Global": OptimizationObjective.MIN_VOLATILITY.value,
+            "Paridad de Riesgo Jerárquica (HRP)": OptimizationObjective.RISK_PARITY.value,
+            "Equiponderada (1/N)": OptimizationObjective.EQUAL_WEIGHT.value,
+        }
+        selected_obj = obj_map[opt_obj_label]
+
+        port_period = st.select_slider(
+            "Ventana histórica de datos",
+            options=["1y", "2y", "3y", "5y"],
+            value="2y",
+            help="Período de cotizaciones para calcular retornos esperados y la matriz de covarianza.",
+        )
+
+        rfr_slider = st.slider(
+            "Tasa libre de riesgo anualizada (Rf %)",
+            min_value=0.0,
+            max_value=12.0,
+            value=4.5,
+            step=0.25,
+            help="Rendimiento del activo sin riesgo (ej: bonos del tesoro a 10 años).",
+        ) / 100.0
+
+        max_weight_slider = st.slider(
+            "Peso máximo por activo (Límite superior %)",
+            min_value=15,
+            max_value=100,
+            value=100,
+            step=5,
+            help="Evita que un solo activo acapare toda la cartera, forzando diversificación.",
+        ) / 100.0
+
+    with port_col2:
+        if len(selected_portfolio_tickers) < 2:
+            st.info("📌 Por favor selecciona o sube al menos dos (2) activos para ejecutar la optimización.")
+        else:
+            with st.spinner("Descargando precios sincronizados y calculando covarianza Ledoit-Wolf..."):
+                prices_df = load_portfolio_prices(tuple(selected_portfolio_tickers), port_period)
+
+            missing_port = [t for t in selected_portfolio_tickers if t not in prices_df.columns]
+            if missing_port:
+                st.warning(f"Sin cotizaciones suficientes en el período para: {', '.join(missing_port)}")
+
+            valid_assets = [t for t in selected_portfolio_tickers if t in prices_df.columns]
+            if len(valid_assets) < 2:
+                st.error("No hay suficientes activos con datos históricos comunes para optimizar la cartera.")
+            else:
+                try:
+                    with st.spinner("Optimizando asignación de capital vía PyPortfolioOpt..."):
+                        port_result = optimize_portfolio_basket(
+                            tickers=valid_assets,
+                            objective=selected_obj,
+                            period=port_period,
+                            risk_free_rate=rfr_slider,
+                            max_weight=max_weight_slider,
+                            prices_df=prices_df[valid_assets],
+                        )
+
+                    # KPIs Superiores
+                    k1, k2, k3, k4 = st.columns(4)
+                    k1.metric(
+                        "Retorno Anual Esperado",
+                        f"{port_result.expected_annual_return_pct:+.2f}%",
+                        help="Rendimiento anualizado medio esperado de la cartera óptima.",
+                    )
+                    k2.metric(
+                        "Volatilidad Anualizada",
+                        f"{port_result.annual_volatility_pct:.2f}%",
+                        help="Desviación típica anualizada esperada (riesgo total).",
+                    )
+                    k3.metric(
+                        "Sharpe Ratio",
+                        f"{port_result.sharpe_ratio:.2f}",
+                        help="Rendimiento excedente sobre la tasa libre de riesgo dividido por volatilidad.",
+                    )
+                    k4.metric(
+                        "N° Efectivo de Activos",
+                        f"{port_result.effective_n_assets:.2f} / {len(valid_assets)}",
+                        help="Inverso del índice Herfindahl (1 / sum(w^2)). Mide la diversificación real alcanzada.",
+                    )
+
+                    # Subtabs de visualización
+                    port_subtabs = st.tabs([
+                        "📈 Frontera Eficiente & Monte Carlo",
+                        "🍩 Distribución de Pesos & Rebalanceo",
+                        "📉 Backtest Histórico Acumulado",
+                    ])
+
+                    with port_subtabs[0]:
+                        fig_ef = build_efficient_frontier_figure(port_result)
+                        st.plotly_chart(fig_ef, use_container_width=True)
+
+                    with port_subtabs[1]:
+                        d_col1, d_col2 = st.columns([1, 1])
+                        with d_col1:
+                            fig_donut = build_weights_allocation_figure(port_result)
+                            st.plotly_chart(fig_donut, use_container_width=True)
+                        with d_col2:
+                            fig_bar = build_weights_comparison_bar_figure(port_result)
+                            st.plotly_chart(fig_bar, use_container_width=True)
+
+                        # Tabla de asignación
+                        rows = []
+                        for sym_w, w in sorted(port_result.weights.items(), key=lambda x: x[1], reverse=True):
+                            m = port_result.asset_metrics.get(sym_w, {})
+                            rows.append({
+                                "Activo": sym_w,
+                                "Peso Óptimo": f"{w * 100:.2f}%",
+                                "Retorno Anual": f"{m.get('return_pct', 0.0):+.2f}%",
+                                "Volatilidad Anual": f"{m.get('vol_pct', 0.0):.2f}%",
+                            })
+                        weights_df = pd.DataFrame(rows)
+                        st.dataframe(weights_df, hide_index=True, width="stretch")
+
+                        # Botón para descargar CSV de asignación de pesos
+                        csv_weights_data = weights_df.to_csv(index=False).encode("utf-8")
+                        st.download_button(
+                            label="📥 Descargar Asignación de Pesos (CSV)",
+                            data=csv_weights_data,
+                            file_name=f"stockwise_portfolio_allocation_{selected_obj}.csv",
+                            mime="text/csv",
+                        )
+
+                    with port_subtabs[2]:
+                        fig_backtest = build_historical_portfolio_backtest_figure(
+                            prices=prices_df[valid_assets],
+                            weights=port_result.weights,
+                        )
+                        st.plotly_chart(fig_backtest, use_container_width=True)
+
+                except Exception as exc:
+                    st.error(f"Error durante la optimización de la cartera: {exc}")
+
+    if learning_mode:
+        render_guide("portfolio")
+
+# ---------------------------------------------------------------------------
+# 7. Eventos y Noticias
+# ---------------------------------------------------------------------------
+with tabs[6]:
     with st.spinner("Consultando eventos corporativos y noticias recientes…"):
         events_info = load_events_and_news(symbol)
 
@@ -1119,9 +1345,9 @@ with tabs[5]:
         render_guide("events_and_news")
 
 # ---------------------------------------------------------------------------
-# 7. Comparar
+# 8. Comparar
 # ---------------------------------------------------------------------------
-with tabs[6]:
+with tabs[7]:
     colombian = [o["symbol"] for o in list_colombian_stocks()]
     universe = sorted(set(colombian + POPULAR_US + [symbol]))
     default = [symbol] + [t for t in (["ISA.CL", "ECOPETROL.CL"] if is_colombian_ticker(symbol) else ["MSFT", "SPY"])
@@ -1164,9 +1390,9 @@ with tabs[6]:
         render_guide("comparison")
 
 # ---------------------------------------------------------------------------
-# 8. Academia & Glosario
+# 9. Academia & Glosario
 # ---------------------------------------------------------------------------
-with tabs[7]:
+with tabs[8]:
     render_education_tab()
 
 # ---------------------------------------------------------------------------

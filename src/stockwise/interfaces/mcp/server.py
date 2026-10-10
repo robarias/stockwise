@@ -38,6 +38,7 @@ from stockwise.domain.markets import COLOMBIA_CURRENCY, is_colombian_ticker, res
 from stockwise.interfaces.mcp.chart_files import save_figure
 from stockwise.services.events import fetch_stock_events_and_news
 from stockwise.services.options import get_options_surface_data
+from stockwise.services.portfolio import optimize_portfolio_basket
 from stockwise.services.reports.investment_memo import save_investment_memo_pdf
 from stockwise.viz.forecast import build_forecast_figure
 
@@ -670,6 +671,46 @@ def get_options_surface(
         }
     except Exception as exc:
         return {"error": f"Error calculando superficie de opciones: {exc}"}
+
+
+@mcp.tool()
+def optimize_portfolio(
+    tickers: list[str] | str,
+    objective: str = "max_sharpe",
+    period: str = "2y",
+    risk_free_rate: float = 0.045,
+    max_weight: float = 1.0,
+) -> dict[str, Any]:
+    """
+    Optimiza la asignación de pesos para una cesta de activos cotizados.
+    Utiliza PyPortfolioOpt (con respaldo SLSQP) para calcular la cartera óptima, métricas anualizadas y diversificación.
+
+    Args:
+        tickers: Lista o cadena de tickers separados por coma (ej: ['AAPL', 'MSFT', 'GOOGL', 'AMZN'] o 'AAPL, MSFT, GOOGL').
+        objective: Objetivo de optimización:
+            - 'max_sharpe': Maximización del Sharpe Ratio (cartera de tangencia).
+            - 'min_volatility': Cartera de mínima varianza global.
+            - 'risk_parity': Paridad de riesgo jerárquica (HRP).
+            - 'equal_weight': Ponderación equiponderada (1/N).
+        period: Período histórico para retornos y matriz de covarianza ('1y', '2y', '5y').
+        risk_free_rate: Tasa libre de riesgo anualizada (por defecto 0.045 = 4.5%).
+        max_weight: Ponderación máxima permitida por activo (por defecto 1.0 = 100%).
+    """
+    try:
+        parsed_tickers = _parse_tickers(tickers)
+        if len(parsed_tickers) < 2:
+            return {"error": "Se requieren al menos 2 activos distintos para optimizar un portafolio."}
+
+        result = optimize_portfolio_basket(
+            tickers=parsed_tickers,
+            objective=objective,
+            period=period,
+            risk_free_rate=risk_free_rate,
+            max_weight=max_weight,
+        )
+        return result.to_dict()
+    except Exception as exc:
+        return {"error": f"Error optimizando portafolio: {exc}"}
 
 
 def main() -> None:

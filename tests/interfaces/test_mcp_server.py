@@ -12,7 +12,7 @@ EXPECTED_TOOLS = {
     "get_risk_and_performance", "compare_stocks", "get_historical_candles", "forecast_stock_prices",
     "list_colombian_stocks_catalog", "get_colombian_stock_analysis", "get_colombian_trm", "convert_usd_to_cop",
     "get_stock_events_and_news", "generate_investment_memo_pdf",
-    "calculate_black_scholes", "get_options_surface",
+    "calculate_black_scholes", "get_options_surface", "optimize_portfolio",
 }
 
 
@@ -64,6 +64,12 @@ def test_calculate_black_scholes_tool():
     assert "price" in res and res["price"] > 0
     assert "greeks" in res and "delta" in res["greeks"]
     assert "moneyness_status" in res
+
+
+def test_optimize_portfolio_tool_validation():
+    res = server.optimize_portfolio(tickers=["AAPL"])
+    assert "error" in res
+    assert "al menos 2" in res["error"]
 
 
 
