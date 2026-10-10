@@ -1,0 +1,53 @@
+name: Audit Education Resources
+
+on:
+  schedule:
+    # Se ejecuta todos los lunes a las 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/stockwise/data/education_catalog.json'
+      - 'src/stockwise/services/education_auditor.py'
+      - '.github/workflows/validate_education_resources.yml'
+
+jobs:
+  audit-resources:
+    name: Validar Enlaces y Recursos Pedagógicos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Ejecutar auditoría de enlaces
+        env:
+          GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
+        run: |
+          python -m stockwise.services.education_auditor --update --github-summary
+
+      - name: Confirmar cambios en el catálogo (si hubo actualizaciones)
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [[ -n $(git status -s src/stockwise/data/education_catalog.json) ]]; then
+            git add src/stockwise/data/education_catalog.json
+            git commit -m "chore(education): actualizar estado y verificación de recursos pedagógicos [skip ci]"
+            git push
+          else
+            echo "No se detectaron cambios en el catálogo de recursos."
+          fi

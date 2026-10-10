@@ -27,6 +27,12 @@ except Exception:
 from stockwise.analytics.forecasting import MODELS, forecast_close
 from stockwise.analytics.indicators import calculate_technical_indicators
 from stockwise.analytics.risk import calculate_risk_metrics
+from stockwise.data.education import (
+    get_chart_guides,
+    get_educational_resources,
+    get_glossary_categories,
+    search_glossary,
+)
 from stockwise.domain.catalogs.colombia import COLOMBIAN_STOCKS, list_colombian_stocks
 from stockwise.domain.education import (
     METRIC_LABELS,
@@ -176,6 +182,130 @@ def render_guide(section_key: str) -> None:
             st.markdown(f"**{tip_title}**: {tip_desc}")
 
 
+def render_education_tab() -> None:
+    """Renderiza el centro educativo con glosario interactivo, guías de gráficas y recursos curados."""
+    st.subheader("🎓 Academia & Centro de Aprendizaje")
+    st.caption(
+        "Aprende a interpretar cada indicador, comprende la anatomía de las gráficas de StockWise "
+        "y explora recursos formativos seleccionados para invertir con criterio propio."
+    )
+
+    edu_section = st.radio(
+        "Sección Educativa",
+        ["📖 Glosario de Conceptos", "📊 Cómo Interpretar las Gráficas", "🌐 Recursos Recomendados"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+
+    if edu_section == "📖 Glosario de Conceptos":
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            q = st.text_input("🔍 Buscar término o métrica", placeholder="Ej: P/E, RSI, Drawdown, ROE, FCF...")
+        with c2:
+            cats = get_glossary_categories()
+            cat_options = {c["id"]: f"{c.get('icon', '📌')} {c['name']}" for c in cats}
+            selected_cat = st.selectbox("Categoría", list(cat_options.keys()), format_func=cat_options.get)
+
+        items = search_glossary(query=q, category_id=selected_cat)
+        if not items:
+            st.info("No se encontraron términos que coincidan con la búsqueda.")
+        else:
+            st.caption(f"Mostrando {len(items)} término(s)")
+            for item in items:
+                with st.expander(f"**{item['title']}** · `{item['friendly_label']}`", expanded=bool(q)):
+                    st.write(item["description"])
+                    st.markdown(f"💡 **Regla de oro / Cómo interpretarlo:**\n{item['rule_of_thumb']}")
+
+    elif edu_section == "📊 Cómo Interpretar las Gráficas":
+        guides = get_chart_guides()
+        if not guides:
+            st.info("Guías de gráficas no disponibles en este momento.")
+            return
+
+        guide_keys = list(guides.keys())
+        labels = {k: f"{guides[k].get('tab_ref', '')} — {guides[k].get('title', k)}" for k in guide_keys}
+        selected_key = st.selectbox("Selecciona la gráfica a estudiar", guide_keys, format_func=labels.get)
+        guide = guides[selected_key]
+
+        st.markdown(f"### {guide.get('title')}")
+        st.info(f"🎯 **Propósito:** {guide.get('purpose')}")
+
+        col_left, col_right = st.columns(2)
+        with col_left:
+            st.markdown("##### 👁️ ¿Qué estás viendo en pantalla?")
+            for point in guide.get("what_you_see", []):
+                st.markdown(f"• {point}")
+
+            st.markdown("##### 🔍 Señales clave a buscar")
+            for sig in guide.get("key_signals", []):
+                st.markdown(f"• {sig}")
+
+        with col_right:
+            st.markdown("##### ⚠️ Errores comunes de principiantes")
+            for err in guide.get("rookie_mistakes", []):
+                st.warning(f"❌ {err}")
+
+            tab_ref = guide.get("tab_ref", "")
+            st.caption(f"📍 Encuentras esta gráfica activa en la pestaña **{tab_ref}** de StockWise.")
+
+    elif edu_section == "🌐 Recursos Recomendados":
+        st.markdown("##### Recursos Pedagógicos Curados")
+        st.caption(
+            "Materiales de alta calidad didáctica, libres de sesgo comercial o promesas irreales. "
+            "La disponibilidad de los enlaces es auditada periódicamente mediante integración continua (CI/CD)."
+        )
+
+        f1, f2, f3 = st.columns(3)
+        with f1:
+            sel_cat = st.selectbox(
+                "Tema",
+                [
+                    "Todas",
+                    "Básicos & Principios de Inversión",
+                    "Análisis Fundamental & Valuación",
+                    "Análisis Técnico",
+                    "Riesgo & Portafolios",
+                    "Mercado Colombiano & Regional",
+                ],
+            )
+        with f2:
+            sel_level = st.selectbox("Nivel", ["Todos", "Principiante", "Intermedio"])
+        with f3:
+            sel_type = st.selectbox(
+                "Formato",
+                ["Todos", "Curso gratuito", "Libro fundamental", "Guía oficial", "Artículo pedagógico"],
+            )
+
+        resources = get_educational_resources(
+            category=sel_cat,
+            level=sel_level,
+            resource_type=sel_type,
+            only_active=False,
+        )
+
+        if not resources:
+            st.info("No se encontraron recursos con los filtros seleccionados.")
+        else:
+            st.caption(f"Mostrando {len(resources)} recurso(s)")
+            for r in resources:
+                with st.container(border=True):
+                    top_c1, top_c2 = st.columns([3, 1])
+                    with top_c1:
+                        st.markdown(f"#### [{r['title']}]({r['url']})")
+                        st.caption(f"Autor: **{r.get('author', '—')}** · Idioma: {r.get('language', 'Español')}")
+                    with top_c2:
+                        is_active = r.get("status") in ("active", "healthy", None)
+                        badge_status = "🟢 Enlace verificado" if is_active else "⚠️ En revisión"
+                        st.caption(f"**{r.get('type', '')}** · `{r.get('level', '')}`\n\n{badge_status}")
+
+                    st.write(r.get("description", ""))
+                    takeaways = r.get("key_takeaways", [])
+                    if takeaways:
+                        with st.expander("📌 ¿Qué aprenderás con este recurso?", expanded=False):
+                            for tk in takeaways:
+                                st.markdown(f"• {tk}")
+
+
 def pct_delta(value) -> str | None:
     return None if value is None else f"{value:+.2f}%"
 
@@ -269,7 +399,15 @@ currency = quote.get("currency") or ("COP" if is_colombian_ticker(symbol) else "
 if quote.get("name"):
     st.caption(f"{quote['name']} · moneda: {currency}")
 
-tabs = st.tabs(["📋 Resumen & Fundamental", "📊 Técnico", "⚖️ Riesgo", "🔮 Pronóstico", "📰 Eventos y Noticias", "🆚 Comparar"])
+tabs = st.tabs([
+    "📋 Resumen & Fundamental",
+    "📊 Técnico",
+    "⚖️ Riesgo",
+    "🔮 Pronóstico",
+    "📰 Eventos y Noticias",
+    "🆚 Comparar",
+    "🎓 Academia & Glosario",
+])
 
 # ---------------------------------------------------------------------------
 # 1. Resumen y Fundamental
@@ -817,6 +955,12 @@ with tabs[5]:
 
     if learning_mode:
         render_guide("comparison")
+
+# ---------------------------------------------------------------------------
+# 7. Academia & Glosario
+# ---------------------------------------------------------------------------
+with tabs[6]:
+    render_education_tab()
 
 # ---------------------------------------------------------------------------
 # Pie de página global (Descargo de Responsabilidad)
