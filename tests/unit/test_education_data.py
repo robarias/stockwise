@@ -120,3 +120,22 @@ def test_search_glossary_category_filter():
 def test_search_glossary_no_match():
     results = search_glossary(query="xyz999inexistente")
     assert results == []
+
+
+def test_bilingual_data_features():
+    # English categories
+    cats_en = get_glossary_categories(lang="en")
+    cat_names = [c["name"] for c in cats_en]
+    assert "All Concepts" in cat_names
+    assert "Valuation & Multiples" in cat_names
+
+    # English search
+    items_en = search_glossary(query="earnings", lang="en")
+    assert len(items_en) >= 1
+    assert any("p/e" in i["title"].lower() or "earnings" in i["description"].lower() for i in items_en)
+
+    # English chart guides
+    guides_en = get_chart_guides(lang="en")
+    assert "candles_and_bands" in guides_en
+    assert "Japanese Candlesticks" in guides_en["candles_and_bands"]["title"]
+

@@ -150,3 +150,33 @@ def test_save_investment_memo_pdf(tmp_path, sample_history, sample_quote):
     assert out_file.stat().st_size > 10_000
     assert out_file.name.startswith("StockWise_Memo_AAPL_")
     assert out_file.name.endswith(".pdf")
+
+
+def test_generate_investment_memo_bilingual(sample_history, sample_quote, sample_fundamentals):
+    """Verifica la generación de memorando en idioma inglés."""
+    pdf_bytes_en = generate_investment_memo(
+        symbol="AAPL",
+        history=sample_history,
+        quote=sample_quote,
+        fundamentals=sample_fundamentals,
+        lang="en",
+    )
+    assert isinstance(pdf_bytes_en, bytes)
+    assert len(pdf_bytes_en) > 10_000
+    assert pdf_bytes_en.startswith(b"%PDF")
+
+
+def test_save_investment_memo_pdf_bilingual(tmp_path, sample_history, sample_quote):
+    """Verifica el guardado en disco con etiqueta de idioma."""
+    out_file = save_investment_memo_pdf(
+        symbol="AAPL",
+        output_dir=tmp_path,
+        history=sample_history,
+        quote=sample_quote,
+        lang="en",
+    )
+    assert isinstance(out_file, Path)
+    assert out_file.exists()
+    assert "_en_" in out_file.name
+    assert out_file.name.endswith(".pdf")
+

@@ -259,7 +259,7 @@ El servidor registra las siguientes 17 herramientas públicas accesibles por cua
 | `get_colombian_trm` | *(sin parámetros)* | `dict` | Consulta de la Tasa Representativa del Mercado (TRM) oficial vigente en Colombia desde la API REST de Datos Abiertos (`datos.gov.co`). |
 | `convert_usd_to_cop` | `usd_amount: float` | `dict` | Conversión aritmética exacta de dólares estadounidenses a pesos colombianos empleando la TRM oficial del día. |
 | `get_stock_events_and_news` | `ticker: str`, `limit: int = 8` | `dict` | Calendario de balances, historial de EPS, dividendos y noticias recientes con clasificación de sentimiento y correlación de impacto en volumen/precio. |
-| `generate_investment_memo_pdf` | `ticker: str`, `output_dir: str \| None = None` | `dict` | Generación de Memorando Ejecutivo de Inversión institucional en formato PDF (2 páginas) con tesis, múltiplos, gráficos de alta resolución, GARCH/VaR y pronósticos. |
+| `generate_investment_memo_pdf` | `ticker: str`, `output_dir: str \| None = None`, `lang: str = 'es'` | `dict` | Generación de Memorando Ejecutivo de Inversión institucional en formato PDF (2 páginas) con soporte bilingüe (ES/EN), tesis, múltiplos, gráficos de alta resolución, GARCH/VaR y pronósticos. |
 | `calculate_black_scholes` | `spot: float`, `strike: float`, `dte_days: float`, `volatility: float`, `risk_free_rate: float = 0.045`, `dividend_yield: float = 0.0`, `option_type: str = 'call'` | `dict` | Valuación analítica Black-Scholes-Merton para opciones europeas (Calls/Puts) y cálculo de Griegas completas ($\Delta, \Gamma, \nu, \Theta, \rho$). |
 | `get_options_surface` | `ticker: str`, `base_volatility: float = 0.25` | `dict` | Matriz 3D de volatilidad implícita (IV Surface) por strike y vencimiento con interpolación y sonrisa de volatilidad. |
 | `optimize_portfolio` | `tickers: list[str] \| str`, `objective: str = 'max_sharpe'`, `period: str = '2y'`, `risk_free_rate: float = 0.045`, `max_weight: float = 1.0` | `dict` | Optimización cuantitativa de asignación de activos (Markowitz, Máximo Sharpe, Mínima Varianza y Risk Parity) con frontera eficiente. |
@@ -285,7 +285,7 @@ El servidor registra las siguientes 17 herramientas públicas accesibles por cua
 StockWise provee múltiples puntos de entrada según la necesidad de uso:
 
 1. **Protocolo MCP (Servidor):** Transporte estándar `stdio` para comunicación entre procesos con clientes de IA (17 herramientas disponibles).
-2. **Aplicación Web (Streamlit):** Panel interactivo integral organizado en 9 pestañas temáticas:
+2. **Aplicación Web (Streamlit):** Panel interactivo integral con selector bilingüe nativo (Español 🇪🇸 / Inglés 🇺🇸) y sincronización bidireccional por URL (`?lang=es|en`), organizado en 9 pestañas temáticas:
    - **📋 Resumen & Fundamental:** Cotización en tiempo real, múltiplos contables (P/E, EV/EBITDA, P/B), márgenes de rentabilidad y consenso.
    - **📊 Técnico:** Gráfico interactivo de velas japonesas, medias móviles (SMA/EMA), RSI, MACD y Bandas de Bollinger.
    - **⚖️ Riesgo:** Desglose multitemporal, Máximo Drawdown, modelado heterocedástico GARCH y VaR/CVaR condicional.

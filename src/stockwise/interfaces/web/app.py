@@ -39,11 +39,11 @@ from stockwise.data.education import (
 )
 from stockwise.domain.catalogs.colombia import COLOMBIAN_STOCKS, list_colombian_stocks
 from stockwise.domain.education import (
-    METRIC_LABELS,
-    SECTION_GUIDES,
     get_company_description,
     get_help,
+    get_metric_labels,
     get_metric_reading,
+    get_section_guides,
     interpret_drawdown,
     interpret_pe,
     interpret_volatility,
@@ -52,6 +52,11 @@ from stockwise.domain.markets import is_colombian_ticker, resolve_ticker
 from stockwise.domain.options import OptionType
 from stockwise.domain.portfolio import OptimizationObjective
 from stockwise.interfaces.mcp import server  # TODO(fase 2): reemplazar por stockwise.services
+from stockwise.interfaces.web.i18n import (
+    get_current_language,
+    get_t,
+    render_language_selector,
+)
 from stockwise.services.options import (
     get_options_surface_data,
     get_pricing_heatmap_data,
@@ -154,7 +159,7 @@ def load_closes(symbols: tuple, period: str) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
-def load_investment_memo_pdf(symbol: str, period: str) -> bytes:
+def load_investment_memo_pdf(symbol: str, period: str, lang: str = "es") -> bytes:
     h = load_history(symbol, period)
     q = load_quote(symbol)
     f = load_fundamentals(symbol)
@@ -169,6 +174,7 @@ def load_investment_memo_pdf(symbol: str, period: str) -> bytes:
         risk_metrics=r,
         indicators=ind,
         events=ev,
+        lang=lang,
     )
 
 
@@ -218,23 +224,30 @@ def fmt_money(value: Any, currency: str) -> str:
 
 def show_table(data: dict[str, Any], show_learning: bool = False) -> None:
     """Muestra un dict plano como tabla con etiquetas amigables y opcionalmente lecturas para principiantes."""
+    t_local = get_t()
+    cur_lang = get_current_language()
     rows = []
     for k, v in data.items():
-        label = METRIC_LABELS.get(k, k.replace("_", " ").capitalize())
+        fallback_label = get_metric_labels(cur_lang).get(k, k.replace("_", " ").capitalize())
+        label = t_local(f"metrics.{k}", default=fallback_label)
         val_str = "—" if v is None else str(v)
         if show_learning:
-            reading = get_metric_reading(k, v) or "—"
+            reading = get_metric_reading(k, v, lang=cur_lang) or "—"
             rows.append((label, val_str, reading))
         else:
             rows.append((label, val_str))
 
-    cols = ["Métrica", "Valor", "Lectura Rápida 🎓"] if show_learning else ["Métrica", "Valor"]
+    cols = (
+        [t_local("common.col_metric"), t_local("common.col_value"), t_local("common.col_reading")]
+        if show_learning
+        else [t_local("common.col_metric"), t_local("common.col_value")]
+    )
     st.dataframe(pd.DataFrame(rows, columns=cols), hide_index=True, width="stretch")
 
 
 def render_guide(section_key: str) -> None:
     """Muestra una guía colapsable para principiantes sobre cómo interpretar la sección."""
-    guide = SECTION_GUIDES.get(section_key)
+    guide = get_section_guides(get_current_language()).get(section_key)
     if not guide:
         return
     with st.expander(guide["title"], expanded=False):
@@ -245,97 +258,151 @@ def render_guide(section_key: str) -> None:
 
 def render_education_tab() -> None:
     """Renderiza el centro educativo con glosario interactivo, guías de gráficas y recursos curados."""
-    st.subheader("🎓 Academia & Centro de Aprendizaje")
-    st.caption(
-        "Aprende a interpretar cada indicador, comprende la anatomía de las gráficas de StockWise "
-        "y explora recursos formativos seleccionados para invertir con criterio propio."
-    )
+    t_local = get_t()
+    cur_lang = get_current_language()
+    st.subheader(t_local("academy.header_title"))
+    st.caption(t_local("academy.header_caption"))
 
     edu_section = st.radio(
         "Sección Educativa",
-        ["📖 Glosario de Conceptos", "📊 Cómo Interpretar las Gráficas", "🌐 Recursos Recomendados"],
+        [
+            t_local("academy.section_glossary"),
+            t_local("academy.section_charts"),
+            t_local("academy.section_resources"),
+        ],
         horizontal=True,
         label_visibility="collapsed",
     )
 
-    if edu_section == "📖 Glosario de Conceptos":
+    if edu_section == t_local("academy.section_glossary"):
         c1, c2 = st.columns([2, 1])
         with c1:
-            q = st.text_input("🔍 Buscar término o métrica", placeholder="Ej: P/E, RSI, Drawdown, ROE, FCF...")
+            q = st.text_input(
+                t_local("academy.search_placeholder"),
+                placeholder="Ex: P/E, RSI, Drawdown, ROE, FCF..." if cur_lang == "en" else "Ej: P/E, RSI, Drawdown, ROE, FCF...",
+            )
         with c2:
-            cats = get_glossary_categories()
+            cats = get_glossary_categories(lang=cur_lang)
             cat_options = {c["id"]: f"{c.get('icon', '📌')} {c['name']}" for c in cats}
-            selected_cat = st.selectbox("Categoría", list(cat_options.keys()), format_func=cat_options.get)
+            selected_cat = st.selectbox(t_local("academy.category"), list(cat_options.keys()), format_func=cat_options.get)
 
-        items = search_glossary(query=q, category_id=selected_cat)
+        items = search_glossary(query=q, category_id=selected_cat, lang=cur_lang)
         if not items:
-            st.info("No se encontraron términos que coincidan con la búsqueda.")
+            st.info(t_local("academy.no_terms_found"))
         else:
-            st.caption(f"Mostrando {len(items)} término(s)")
+            st.caption(t_local("academy.showing_terms", count=len(items)))
             for item in items:
                 with st.expander(f"**{item['title']}** · `{item['friendly_label']}`", expanded=bool(q)):
                     st.write(item["description"])
-                    st.markdown(f"💡 **Regla de oro / Cómo interpretarlo:**\n{item['rule_of_thumb']}")
+                    st.markdown(f"{t_local('academy.rule_of_thumb_prefix')}\n{item['rule_of_thumb']}")
 
-    elif edu_section == "📊 Cómo Interpretar las Gráficas":
-        guides = get_chart_guides()
+    elif edu_section in (t_local("academy.section_charts"), "📊 Cómo Interpretar las Gráficas"):
+        guides = get_chart_guides(lang=cur_lang)
         if not guides:
-            st.info("Guías de gráficas no disponibles en este momento.")
+            st.info("Chart guides currently unavailable." if cur_lang == "en" else "Guías de gráficas no disponibles en este momento.")
             return
 
         guide_keys = list(guides.keys())
         labels = {k: f"{guides[k].get('tab_ref', '')} — {guides[k].get('title', k)}" for k in guide_keys}
-        selected_key = st.selectbox("Selecciona la gráfica a estudiar", guide_keys, format_func=labels.get)
+        select_chart_label = "Select chart to analyze" if cur_lang == "en" else "Selecciona la gráfica a estudiar"
+        selected_key = st.selectbox(select_chart_label, guide_keys, format_func=labels.get)
         guide = guides[selected_key]
 
         st.markdown(f"### {guide.get('title')}")
-        st.info(f"🎯 **Propósito:** {guide.get('purpose')}")
+        purpose_label = "🎯 **Purpose:**" if cur_lang == "en" else "🎯 **Propósito:**"
+        st.info(f"{purpose_label} {guide.get('purpose')}")
 
         col_left, col_right = st.columns(2)
         with col_left:
-            st.markdown("##### 👁️ ¿Qué estás viendo en pantalla?")
+            st.markdown("##### 👁️ What are you looking at?" if cur_lang == "en" else "##### 👁️ ¿Qué estás viendo en pantalla?")
             for point in guide.get("what_you_see", []):
                 st.markdown(f"• {point}")
 
-            st.markdown("##### 🔍 Señales clave a buscar")
+            st.markdown("##### 🔍 Key signals to look for" if cur_lang == "en" else "##### 🔍 Señales clave a buscar")
             for sig in guide.get("key_signals", []):
                 st.markdown(f"• {sig}")
 
         with col_right:
-            st.markdown("##### ⚠️ Errores comunes de principiantes")
+            st.markdown("##### ⚠️ Common beginner mistakes" if cur_lang == "en" else "##### ⚠️ Errores comunes de principiantes")
             for err in guide.get("rookie_mistakes", []):
                 st.warning(f"❌ {err}")
 
             tab_ref = guide.get("tab_ref", "")
-            st.caption(f"📍 Encuentras esta gráfica activa en la pestaña **{tab_ref}** de StockWise.")
+            if cur_lang == "en":
+                st.caption(f"📍 Find this interactive chart in the **{tab_ref}** tab of StockWise.")
+            else:
+                st.caption(f"📍 Encuentras esta gráfica activa en la pestaña **{tab_ref}** de StockWise.")
 
-    elif edu_section == "🌐 Recursos Recomendados":
-        st.markdown("##### Recursos Pedagógicos Curados")
-        st.caption(
-            "Materiales de alta calidad didáctica, libres de sesgo comercial o promesas irreales. "
-            "La disponibilidad de los enlaces es auditada periódicamente mediante integración continua (CI/CD)."
-        )
+    elif edu_section in (t_local("academy.section_resources"), "🌐 Recursos Recomendados"):
+        if cur_lang == "en":
+            st.markdown("##### Curated Pedagogical Resources")
+            st.caption(
+                "High-quality pedagogical materials, free from commercial bias or unrealistic claims. "
+                "Link availability is periodically audited via automated CI/CD workflows."
+            )
+        else:
+            st.markdown("##### Recursos Pedagógicos Curados")
+            st.caption(
+                "Materiales de alta calidad didáctica, libres de sesgo comercial o promesas irreales. "
+                "La disponibilidad de los enlaces es auditada periódicamente mediante integración continua (CI/CD)."
+            )
 
         f1, f2, f3 = st.columns(3)
         with f1:
-            sel_cat = st.selectbox(
-                "Tema",
+            theme_label = "Topic" if cur_lang == "en" else "Tema"
+            cat_choices = (
                 [
+                    "All",
+                    "Basics & Investing Principles",
+                    "Fundamental Analysis & Valuation",
+                    "Technical Analysis",
+                    "Risk & Portfolios",
+                    "Colombian & Regional Markets",
+                ]
+                if cur_lang == "en"
+                else [
                     "Todas",
                     "Básicos & Principios de Inversión",
                     "Análisis Fundamental & Valuación",
                     "Análisis Técnico",
                     "Riesgo & Portafolios",
                     "Mercado Colombiano & Regional",
-                ],
+                ]
             )
+            sel_cat_disp = st.selectbox(theme_label, cat_choices)
+            cat_map = {
+                "All": "Todas",
+                "Basics & Investing Principles": "Básicos & Principios de Inversión",
+                "Fundamental Analysis & Valuation": "Análisis Fundamental & Valuación",
+                "Technical Analysis": "Análisis Técnico",
+                "Risk & Portfolios": "Riesgo & Portafolios",
+                "Colombian & Regional Markets": "Mercado Colombiano & Regional",
+            }
+            sel_cat = cat_map.get(sel_cat_disp, sel_cat_disp)
+
         with f2:
-            sel_level = st.selectbox("Nivel", ["Todos", "Principiante", "Intermedio"])
+            level_label = "Level" if cur_lang == "en" else "Nivel"
+            level_choices = ["All", "Beginner", "Intermediate"] if cur_lang == "en" else ["Todos", "Principiante", "Intermedio"]
+            sel_level_disp = st.selectbox(level_label, level_choices)
+            level_map = {"All": "Todos", "Beginner": "Principiante", "Intermediate": "Intermedio"}
+            sel_level = level_map.get(sel_level_disp, sel_level_disp)
+
         with f3:
-            sel_type = st.selectbox(
-                "Formato",
-                ["Todos", "Curso gratuito", "Libro fundamental", "Guía oficial", "Artículo pedagógico"],
+            format_label = "Format" if cur_lang == "en" else "Formato"
+            format_choices = (
+                ["All", "Free course", "Fundamental book", "Official guide", "Pedagogical article"]
+                if cur_lang == "en"
+                else ["Todos", "Curso gratuito", "Libro fundamental", "Guía oficial", "Artículo pedagógico"]
             )
+            sel_type_disp = st.selectbox(format_label, format_choices)
+            type_map = {
+                "All": "Todos",
+                "Free course": "Curso gratuito",
+                "Fundamental book": "Libro fundamental",
+                "Official guide": "Guía oficial",
+                "Pedagogical article": "Artículo pedagógico",
+            }
+            sel_type = type_map.get(sel_type_disp, sel_type_disp)
 
         resources = get_educational_resources(
             category=sel_cat,
@@ -345,24 +412,31 @@ def render_education_tab() -> None:
         )
 
         if not resources:
-            st.info("No se encontraron recursos con los filtros seleccionados.")
+            st.info("No resources found matching the selected filters." if cur_lang == "en" else "No se encontraron recursos con los filtros seleccionados.")
         else:
-            st.caption(f"Mostrando {len(resources)} recurso(s)")
+            res_count_msg = f"Showing {len(resources)} resource(s)" if cur_lang == "en" else f"Mostrando {len(resources)} recurso(s)"
+            st.caption(res_count_msg)
             for r in resources:
                 with st.container(border=True):
                     top_c1, top_c2 = st.columns([3, 1])
                     with top_c1:
                         st.markdown(f"#### [{r['title']}]({r['url']})")
-                        st.caption(f"Autor: **{r.get('author', '—')}** · Idioma: {r.get('language', 'Español')}")
+                        author_label = "Author" if cur_lang == "en" else "Autor"
+                        lang_label = "Language" if cur_lang == "en" else "Idioma"
+                        st.caption(f"{author_label}: **{r.get('author', '—')}** · {lang_label}: {r.get('language', 'Español')}")
                     with top_c2:
                         is_active = r.get("status") in ("active", "healthy", None)
-                        badge_status = "🟢 Enlace verificado" if is_active else "⚠️ En revisión"
+                        if cur_lang == "en":
+                            badge_status = "🟢 Verified Link" if is_active else "⚠️ Under Review"
+                        else:
+                            badge_status = "🟢 Enlace verificado" if is_active else "⚠️ En revisión"
                         st.caption(f"**{r.get('type', '')}** · `{r.get('level', '')}`\n\n{badge_status}")
 
                     st.write(r.get("description", ""))
                     takeaways = r.get("key_takeaways", [])
                     if takeaways:
-                        with st.expander("📌 ¿Qué aprenderás con este recurso?", expanded=False):
+                        exp_title = "📌 What will you learn from this resource?" if cur_lang == "en" else "📌 ¿Qué aprenderás con este recurso?"
+                        with st.expander(exp_title, expanded=False):
                             for tk in takeaways:
                                 st.markdown(f"• {tk}")
 
@@ -375,79 +449,84 @@ def pct_delta(value) -> str | None:
 # Barra lateral: selección del activo
 # ---------------------------------------------------------------------------
 st.sidebar.title("🦉 StockWise")
-market = st.sidebar.radio("Mercado", ["🇨🇴 Colombia (BVC)", "🇺🇸 Estados Unidos", "🌐 Otro (ticker manual)"])
+lang, t = render_language_selector(sidebar=True)
+st.sidebar.divider()
+
+market_options = [
+    t("sidebar.market_colombia"),
+    t("sidebar.market_us"),
+    t("sidebar.market_other"),
+]
+market = st.sidebar.radio(t("sidebar.market"), market_options)
 
 if market.startswith("🇨🇴"):
-    sectors = ["Todos"] + sorted({m["sector"] for m in COLOMBIAN_STOCKS.values()})
-    sector = st.sidebar.selectbox("Sector", sectors)
-    options = list_colombian_stocks(None if sector == "Todos" else sector)
+    all_sector = t("common.all")
+    sectors = [all_sector] + sorted({m["sector"] for m in COLOMBIAN_STOCKS.values()})
+    sector = st.sidebar.selectbox(t("sidebar.sector"), sectors)
+    options = list_colombian_stocks(None if sector == all_sector else sector)
     labels = {o["symbol"]: f"{o['symbol']} — {o['name']}" for o in options}
-    symbol = st.sidebar.selectbox("Acción", list(labels), format_func=labels.get)
+    symbol = st.sidebar.selectbox(t("sidebar.stock"), list(labels), format_func=labels.get)
 elif market.startswith("🇺🇸"):
-    choice = st.sidebar.selectbox("Acción popular", POPULAR_US)
-    custom = st.sidebar.text_input("…o escribe otro ticker", placeholder="p. ej. NFLX")
+    choice = st.sidebar.selectbox(t("sidebar.popular_stock"), POPULAR_US)
+    custom = st.sidebar.text_input(t("sidebar.or_custom_ticker"), placeholder=t("sidebar.custom_ticker_placeholder"))
     symbol = resolve_ticker(custom or choice)
 else:
-    symbol = resolve_ticker(st.sidebar.text_input("Ticker", value="AAPL", help="Ej: 7203.T, SAP.DE, ^GSPC"))
+    symbol = resolve_ticker(st.sidebar.text_input(t("sidebar.ticker_label"), value="AAPL", help=t("sidebar.manual_ticker_help")))
 
 col_hist, col_freq = st.sidebar.columns(2)
 with col_freq:
+    freq_options = [t("sidebar.freq_daily"), t("sidebar.freq_hourly")]
     freq_label = st.selectbox(
-        "Frecuencia",
-        ["📅 Diario (1D)", "⏱️ Horario (1H)"],
-        help="Elige 'Horario' para analizar barras de 1 hora y hacer zoom a nivel intradiario (máx. 2 años en Yahoo Finance).",
+        t("sidebar.frequency"),
+        freq_options,
+        help=t("sidebar.freq_help"),
     )
-interval = "1h" if "Horario" in freq_label else "1d"
+interval = "1h" if ("1H" in freq_label or "Horario" in freq_label or "Hourly" in freq_label) else "1d"
 
 if interval == "1h":
-    periods_map = {"1 mes": "1mo", "3 meses": "3mo", "6 meses": "6mo", "1 año": "1y", "2 años": "2y"}
-    default_p_idx = 3  # "1 año"
+    periods_keys = ["1mo", "3mo", "6mo", "1y", "2y"]
+    default_p_idx = 3  # "1y"
 else:
-    periods_map = {"1 mes": "1mo", "6 meses": "6mo", "1 año": "1y", "2 años": "2y", "5 años": "5y"}
-    default_p_idx = 2  # "1 año"
+    periods_keys = ["1mo", "6mo", "1y", "2y", "5y"]
+    default_p_idx = 2  # "1y"
 
+periods_map = {t(f"common.periods.{k}"): k for k in periods_keys}
 with col_hist:
-    period_label = st.selectbox("Historial", list(periods_map), index=default_p_idx)
+    period_label = st.selectbox(t("sidebar.history_label"), list(periods_map.keys()), index=default_p_idx)
 period = periods_map[period_label]
-st.sidebar.caption("Datos: Yahoo Finance (pueden tener retraso). Caché de 15 min.")
-if st.sidebar.button("🔄 Actualizar datos"):
+st.sidebar.caption(t("sidebar.data_source_caption"))
+if st.sidebar.button(t("sidebar.refresh_data_button")):
     st.cache_data.clear()
     st.rerun()
 
 st.sidebar.divider()
-st.sidebar.markdown("##### 📄 Exportar Reporte")
-with st.sidebar.expander("Memorando Ejecutivo (PDF)", expanded=False):
-    st.caption("Reporte de 2 páginas con resumen, métricas, gráfico técnico, riesgo GARCH y pronóstico.")
+st.sidebar.markdown(t("sidebar.export_report_header"))
+with st.sidebar.expander(t("sidebar.exec_memo_expander"), expanded=False):
+    st.caption(t("sidebar.exec_memo_caption"))
     if symbol:
-        _side_pdf_bytes = load_investment_memo_pdf(symbol, period)
+        _side_pdf_bytes = load_investment_memo_pdf(symbol, period, lang=lang)
         st.download_button(
-            label="⬇️ Descargar PDF",
+            label=t("sidebar.download_pdf_btn"),
             data=_side_pdf_bytes,
-            file_name=f"StockWise_Memo_{symbol}_{period}.pdf",
+            file_name=f"StockWise_Memo_{symbol}_{period}_{lang}.pdf",
             mime="application/pdf",
             key="btn_pdf_sidebar",
             use_container_width=True,
         )
 
 learning_mode = st.sidebar.toggle(
-    "Modo Aprendizaje 🎓",
+    t("sidebar.learning_mode_label"),
     value=True,
-    help="Activa explicaciones sencillas, reglas de oro y guías prácticas para principiantes en cada métrica.",
+    help=t("sidebar.learning_mode_help"),
 )
 
 st.sidebar.divider()
 st.sidebar.warning(
-    "⚖️ **Aviso Importante:**\n\n"
-    "Herramienta exclusivamente analítica y educativa. "
-    "**No constituye recomendación de inversión** ni asesoría financiera.",
+    t("sidebar.disclaimer_warning"),
     icon="⚠️",
 )
-with st.sidebar.expander("Ver descargo completo", expanded=False):
-    st.caption(
-        "StockWise no formula sugerencias de compra o venta de activos ni gestiona patrimonio. "
-        "Las métricas, indicadores y pronósticos estadísticos son herramientas de apoyo para el análisis propio. "
-        "Cada usuario asume la responsabilidad exclusiva de sus decisiones de inversión."
-    )
+with st.sidebar.expander(t("sidebar.disclaimer_full_expander"), expanded=False):
+    st.caption(t("sidebar.disclaimer_full_text"))
 
 # ---------------------------------------------------------------------------
 # Datos base
@@ -478,26 +557,26 @@ with col_title:
         st.caption(f"{quote['name']} · moneda: {currency}")
 
 with col_pdf:
-    pdf_bytes = load_investment_memo_pdf(symbol, period)
+    pdf_bytes = load_investment_memo_pdf(symbol, period, lang=lang)
     st.download_button(
-        label="📥 Descargar Memorando PDF",
+        label=t("sidebar.download_memo_pdf"),
         data=pdf_bytes,
-        file_name=f"StockWise_Memo_{symbol}_{period}.pdf",
+        file_name=f"StockWise_Memo_{symbol}_{period}_{lang}.pdf",
         mime="application/pdf",
-        help="Descarga un memorando institucional en PDF (2 páginas) con resumen ejecutivo, métricas clave, gráfico técnico, riesgo GARCH y pronóstico.",
+        help=t("sidebar.download_memo_help"),
         use_container_width=True,
     )
 
 tabs = st.tabs([
-    "📋 Resumen & Fundamental",
-    "📊 Técnico",
-    "⚖️ Riesgo",
-    "🔮 Pronóstico",
-    "⚡ Opciones & Volatilidad",
-    "💼 Portafolios",
-    "📰 Eventos y Noticias",
-    "🆚 Comparar",
-    "🎓 Academia & Glosario",
+    t("tabs.summary"),
+    t("tabs.technical"),
+    t("tabs.risk"),
+    t("tabs.forecast"),
+    t("tabs.options"),
+    t("tabs.portfolio"),
+    t("tabs.events"),
+    t("tabs.compare"),
+    t("tabs.academy"),
 ])
 
 # ---------------------------------------------------------------------------
@@ -531,44 +610,46 @@ with tabs[0]:
     if current_p and low_52 and high_52 and high_52 > low_52:
         try:
             pct_in_range = ((float(current_p) - float(low_52)) / (float(high_52) - float(low_52))) * 100
-            range_delta = f"{pct_in_range:.0f}% del rango"
+            range_delta = t("metrics.range_progress", pct=f"{pct_in_range:.0f}")
         except (ValueError, TypeError, ZeroDivisionError):
             pass
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric(
-        "Precio",
+        t("metrics.price"),
         fmt_money(quote.get("current_price"), currency),
         pct_delta(quote.get("day_change_pct")),
-        help=get_help("price"),
+        help=get_help("price", lang=lang),
     )
-    c2.metric("Cap. de mercado", quote.get("market_cap") or "—", help=get_help("market_cap"))
+    c2.metric(t("metrics.market_cap"), quote.get("market_cap") or "—", help=get_help("market_cap", lang=lang))
     c3.metric(
-        "Rango 52 sem.",
+        t("metrics.range_52w"),
         range_52,
         range_delta,
         delta_color="off",
-        help=get_help("52w_range"),
+        help=get_help("52w_range", lang=lang),
     )
     pe_raw = val_data.get("trailing_pe")
-    pe_delta = interpret_pe(pe_raw) if learning_mode else None
+    pe_delta = interpret_pe(pe_raw, lang=lang) if learning_mode else None
     c4.metric(
-        "P/E (Trailing)",
+        t("metrics.pe_trailing"),
         str(pe_raw) if pe_raw is not None else "—",
         pe_delta,
         delta_color="off" if pe_delta else "normal",
-        help=get_help("pe_ratio"),
+        help=get_help("pe_ratio", lang=lang),
     )
     dy = div_data.get("dividend_yield_pct")
     target_price = div_data.get("target_mean_price")
     dy_str = f"{dy:.2f}%" if dy is not None else "—"
-    target_delta = f"Obj: {target_price}" if target_price is not None else None
-    c5.metric("Div. Yield", dy_str, target_delta, help=get_help("dividend_yield"))
+    target_prefix = "Target: " if lang == "en" else "Obj: "
+    target_delta = f"{target_prefix}{target_price}" if target_price is not None else None
+    c5.metric(t("metrics.dividend_yield"), dy_str, target_delta, help=get_help("dividend_yield", lang=lang))
 
-    company_desc = get_company_description(symbol, fund.get("business_summary"))
+    company_desc = get_company_description(symbol, fund.get("business_summary"), lang=lang)
     if company_desc:
         with st.container(border=True):
-            st.markdown(f"🏢 **Acerca de {fund.get('company_name') or quote.get('name') or symbol}**")
+            comp_name = fund.get("company_name") or quote.get("name") or symbol
+            st.markdown(f"**{t('common.about_company', company=comp_name)}**")
             st.write(company_desc)
 
     if currency == "COP":
@@ -619,7 +700,7 @@ with tabs[0]:
         )
         st.plotly_chart(fig, width="stretch")
     with right:
-        st.markdown("**Datos de la sesión**")
+        st.markdown(f"**{t('common.session_data')}**")
         show_table({k: quote.get(k) for k in ("day_open", "day_high", "day_low", "volume", "avg_volume")
                     if k in quote})
 
@@ -629,16 +710,16 @@ with tabs[0]:
         st.info(f"ℹ️ {fund.get('error', 'Sin datos fundamentales disponibles.')} "
                 "(Los ETF y algunos emisores no reportan métricas financieras completas).")
     else:
-        st.subheader("🏛️ Fundamentales y Salud Financiera")
+        st.subheader(t("common.fundamentals_title"))
         a, b, c = st.columns(3)
         with a:
-            st.markdown("**Valuación**")
+            st.markdown(f"**{t('common.valuation')}**")
             show_table(fund["valuation"], show_learning=learning_mode)
         with b:
-            st.markdown("**Rentabilidad y salud financiera**")
+            st.markdown(f"**{t('common.profitability')}**")
             show_table(fund["profitability_and_health"], show_learning=learning_mode)
         with c:
-            st.markdown("**Dividendos y analistas**")
+            st.markdown(f"**{t('common.dividends')}**")
             show_table(fund["dividends_and_targets"], show_learning=learning_mode)
 
     if learning_mode:
@@ -649,18 +730,18 @@ with tabs[0]:
 # ---------------------------------------------------------------------------
 with tabs[1]:
     if len(hist) < 20:
-        st.warning("Historial insuficiente para indicadores técnicos.")
+        st.warning(t("technical.insufficient_history"))
     else:
         tech = calculate_technical_indicators(hist)
         c1, c2, c3 = st.columns(3)
-        c1.metric("RSI (14)", tech["rsi_14"]["value"], tech["rsi_14"]["status"].split(" (")[0], delta_color="off", help=get_help("rsi"))
-        c2.metric("MACD", tech["macd"]["macd_line"], tech["macd"]["status"].split(" (")[0], delta_color="off", help=get_help("macd"))
+        c1.metric(t("technical.rsi"), tech["rsi_14"]["value"], tech["rsi_14"]["status"].split(" (")[0], delta_color="off", help=get_help("rsi", lang=lang))
+        c2.metric(t("technical.macd"), tech["macd"]["macd_line"], tech["macd"]["status"].split(" (")[0], delta_color="off", help=get_help("macd", lang=lang))
         pb = tech["bollinger_bands_20_2"]["percent_b"]
-        c3.metric("Bollinger %B", "—" if pb is None else pb, help=get_help("bollinger"))
-        slider_unit = "Horas" if interval == "1h" else "Ruedas"
+        c3.metric(t("technical.bollinger_b"), "—" if pb is None else pb, help=get_help("bollinger", lang=lang))
+        slider_unit = t("technical.unit_hours") if interval == "1h" else t("technical.unit_sessions")
         min_bars = min(20, len(hist))
         default_bars = min(len(hist), 252)
-        show_bars = st.slider(f"{slider_unit} a mostrar", min_bars, min(len(hist), 750), default_bars, step=10)
+        show_bars = st.slider(t("technical.slider_bars", unit=slider_unit), min_bars, min(len(hist), 750), default_bars, step=10)
 
         # Marcadores de eventos (reportes de utilidades y noticias de alto volumen)
         ev_data = load_events_and_news(symbol)
@@ -688,7 +769,7 @@ with tabs[1]:
             build_technical_figure(symbol, hist, currency, show_bars, events=event_markers),
             width="stretch",
         )
-        with st.expander("Lectura de señales y medias móviles", expanded=True):
+        with st.expander(t("technical.signals_expander"), expanded=True):
             for note in tech["analysis_notes"] or ["Sin señales extremas."]:
                 st.write(f"• {note}")
             show_table(tech["moving_averages"])
@@ -708,16 +789,16 @@ with tabs[2]:
         cond_risk = risk.get("conditional_risk")
         garch_full = risk.get("_garch_full")
 
-        vol_delta = interpret_volatility(risk["annualized_volatility_pct"]) if learning_mode else None
-        dd_delta = interpret_drawdown(risk["max_drawdown_pct"]) if learning_mode else None
+        vol_delta = interpret_volatility(risk["annualized_volatility_pct"], lang=lang) if learning_mode else None
+        dd_delta = interpret_drawdown(risk["max_drawdown_pct"], lang=lang) if learning_mode else None
 
         # Fila 1: Métricas de riesgo tradicionales
         c1, c2, c3 = st.columns(3)
-        c1.metric("Retorno acumulado", f"{risk['cumulative_return_pct']:.2f}%", help=get_help("cumulative_return"))
-        c2.metric("Volatilidad histórica", f"{risk['annualized_volatility_pct']:.2f}% anual", vol_delta,
-                  delta_color="off" if vol_delta else "normal", help=get_help("volatility"))
-        c3.metric("Máx. drawdown", f"{risk['max_drawdown_pct']:.2f}%", dd_delta,
-                  delta_color="off" if dd_delta else "normal", help=get_help("max_drawdown"))
+        c1.metric(t("risk.cumulative_return"), f"{risk['cumulative_return_pct']:.2f}%", help=get_help("cumulative_return", lang=lang))
+        c2.metric(t("risk.historical_volatility"), f"{risk['annualized_volatility_pct']:.2f}%", vol_delta,
+                  delta_color="off" if vol_delta else "normal", help=get_help("volatility", lang=lang))
+        c3.metric(t("risk.max_drawdown"), f"{risk['max_drawdown_pct']:.2f}%", dd_delta,
+                  delta_color="off" if dd_delta else "normal", help=get_help("max_drawdown", lang=lang))
 
         # Fila 2: Métricas dinámicas GARCH y VaR
         if cond_risk:
@@ -726,27 +807,28 @@ with tabs[2]:
             current_vol = cond_risk["current_volatility_annualized_pct"]
             hist_mean = cond_risk["historical_mean_volatility_annualized_pct"]
             vol_diff = round(current_vol - hist_mean, 2)
+            vol_diff_str = t("risk.vol_diff_vs_mean", diff=f"{vol_diff:+.2f}")
             g1.metric(
-                "Volatilidad actual (GARCH)",
+                t("risk.garch_current_vol"),
                 f"{current_vol:.2f}%",
-                f"{vol_diff:+.2f}% vs media",
+                vol_diff_str,
                 delta_color="inverse",
-                help=get_help("garch"),
+                help=get_help("garch", lang=lang),
             )
             g2.metric(
-                "Régimen de volatilidad",
+                t("risk.regime"),
                 cond_risk["volatility_regime"],
                 help=cond_risk.get("regime_description"),
             )
             g3.metric(
-                "VaR diario (95%)",
+                t("risk.var_95_daily"),
                 f"{var_m.get('var_95_1d_pct', 0):+.2f}%",
-                help=get_help("var_condicional"),
+                help=get_help("var_condicional", lang=lang),
             )
             g4.metric(
-                "CVaR diario (Expected Shortfall)",
+                t("risk.cvar_95_daily"),
                 f"{var_m.get('cvar_95_1d_pct', 0):+.2f}%",
-                help=get_help("cvar_condicional"),
+                help=get_help("cvar_condicional", lang=lang),
             )
 
         close = hist["Close"].copy()
@@ -756,10 +838,10 @@ with tabs[2]:
 
         a, b = st.columns(2)
         fig_dd = go.Figure(go.Scatter(x=dd.index, y=dd.values, fill="tozeroy", line=dict(color="#ef5350")))
-        fig_dd.update_layout(title="Drawdown (%)", template="plotly_white", height=320)
+        fig_dd.update_layout(title=t("risk.drawdown_chart_title"), template="plotly_white", height=320)
         a.plotly_chart(fig_dd, width="stretch")
         fig_h = go.Figure(go.Histogram(x=rets.values, nbinsx=50, marker_color="#1f77b4"))
-        fig_h.update_layout(title="Distribución de retornos diarios (%)", template="plotly_white", height=320)
+        fig_h.update_layout(title=t("risk.returns_distribution_title"), template="plotly_white", height=320)
         b.plotly_chart(fig_h, width="stretch")
 
         # Gráfico dinámico de Volatilidad Condicional GARCH
@@ -767,7 +849,7 @@ with tabs[2]:
             fig_garch = build_conditional_volatility_figure(symbol, garch_full)
             st.plotly_chart(fig_garch, width="stretch")
 
-            with st.expander("Detalle del Modelo GARCH, VaR y Expected Shortfall"):
+            with st.expander(t("risk.garch_details_expander")):
                 col_va, col_vb = st.columns(2)
                 with col_va:
                     st.write("**Value-at-Risk (VaR) y CVaR Condicionales:**")
@@ -806,7 +888,7 @@ with tabs[2]:
 
         br = {k.replace("_pct", "").replace("_", " "): (None if v is None else f"{v:+.2f}%")
               for k, v in risk["returns_breakdown"].items()}
-        st.subheader("Retornos por periodo")
+        st.subheader(t("risk.returns_by_period"))
         show_table(br)
         if learning_mode:
             render_guide("risk")
@@ -815,10 +897,10 @@ with tabs[2]:
 # 4. Pronóstico
 # ---------------------------------------------------------------------------
 with tabs[3]:
-    st.caption("Serie temporal del log-precio con ARIMA, ETS, Theta y Ensamble, validada por backtest y simulación Monte Carlo.")
+    st.caption(t("forecast.caption"))
     c1, c2 = st.columns(2)
-    horizon = c1.slider("Horizonte (ruedas)", 5, 120, 30, step=5)
-    model = c2.selectbox("Modelo", MODELS, help="'auto' elige el de menor error en backtest; 'ensemble' combina ARIMA+ETS+Theta.")
+    horizon = c1.slider(t("forecast.horizon_slider"), 5, 120, 30, step=5)
+    model = c2.selectbox(t("forecast.model_selection"), MODELS, help="'auto' elige el de menor error en backtest; 'ensemble' combina ARIMA+ETS+Theta.")
 
     with st.expander("Niveles clave para Monte Carlo (Opcional)", expanded=False):
         cs1, cs2 = st.columns(2)
@@ -830,7 +912,7 @@ with tabs[3]:
     support_val = float(sup_in) if sup_in > 0 else None
     resistance_val = float(res_in) if res_in > 0 else None
 
-    if st.button("Calcular pronóstico", type="primary"):
+    if st.button(t("forecast.calculate_btn"), type="primary"):
         st.session_state["fc_key"] = (symbol, period, horizon, model, support_val, resistance_val)
 
     if st.session_state.get("fc_key") == (symbol, period, horizon, model, support_val, resistance_val):
@@ -848,32 +930,32 @@ with tabs[3]:
             res_a = mc_sum.get("resistance_analysis", {})
 
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Último precio", fmt_money(s["last_price"], currency), help=get_help("price"))
-            m2.metric(f"Pronóstico {s['forecast_end_date']}", fmt_money(end["mean"], currency),
-                      pct_delta(end["expected_change_pct"]), help=get_help("forecast"))
-            m3.metric("Rango 95%", f"{end['lower_95']:,.2f} – {end['upper_95']:,.2f}",
+            m1.metric(t("forecast.last_price"), fmt_money(s["last_price"], currency), help=get_help("price", lang=lang))
+            m2.metric(t("forecast.forecast_at", date=s["forecast_end_date"]), fmt_money(end["mean"], currency),
+                      pct_delta(end["expected_change_pct"]), help=get_help("forecast", lang=lang))
+            m3.metric(t("forecast.range_95"), f"{end['lower_95']:,.2f} – {end['upper_95']:,.2f}",
                       help="Intervalo de confianza al 95%: rango estadístico donde probablemente se moverá el precio.")
-            m4.metric("Habilidad vs. ingenuo", f"{bt['skill_vs_naive_pct']:+.2f}%",
+            m4.metric(t("forecast.skill_vs_naive"), f"{bt['skill_vs_naive_pct']:+.2f}%",
                       help="Mejora porcentual en precisión del modelo respecto a predecir que el precio no cambiará.")
 
             if mc_sum:
                 mc1, mc2, mc3, mc4 = st.columns(4)
-                mc1.metric("P(Alza en horizonte)", f"{probs.get('prob_gain_pct', 0)}%",
+                mc1.metric(t("forecast.prob_gain"), f"{probs.get('prob_gain_pct', 0)}%",
                            help="Probabilidad de que el precio final supere el actual (simulación GBM).")
-                mc2.metric(f"P(Toque Res. {res_a.get('price', 0):,.2f})",
+                mc2.metric(t("forecast.prob_touch_res", price=f"{res_a.get('price', 0):,.2f}"),
                            f"{res_a.get('prob_touch_during_horizon_pct', 0)}%",
                            help="Probabilidad de tocar la resistencia en cualquier momento del horizonte.")
-                mc3.metric(f"P(Toque Sop. {sup_a.get('price', 0):,.2f})",
+                mc3.metric(t("forecast.prob_touch_sup", price=f"{sup_a.get('price', 0):,.2f}"),
                            f"{sup_a.get('prob_touch_during_horizon_pct', 0)}%",
                            help="Probabilidad de tocar el soporte en cualquier momento del horizonte.")
-                mc4.metric("Vol. Monte Carlo (anual)", f"{mc_sum.get('volatility_annualized_pct', 0)}%",
+                mc4.metric(t("forecast.mc_volatility"), f"{mc_sum.get('volatility_annualized_pct', 0)}%",
                            help="Volatilidad anualizada calibrada para el Movimiento Browniano Geométrico.")
 
             st.plotly_chart(build_forecast_figure(symbol, result, currency), width="stretch")
             for w in s["warnings"]:
                 st.warning(w)
 
-            with st.expander("Detalle del modelo, ensamble y backtest"):
+            with st.expander(t("forecast.model_details_expander")):
                 st.write(f"**Modelo seleccionado:** {s['model_selected']} ({s['selection']})")
                 if s.get("ensemble_weights"):
                     st.write("**Ponderaciones del ensamble (inversa de MAE):**", s["ensemble_weights"])
@@ -888,7 +970,7 @@ with tabs[3]:
                              width="stretch")
 
             if mc_sum:
-                with st.expander("Detalle de Simulación Monte Carlo (Percentiles y Probabilidades)"):
+                with st.expander(t("forecast.mc_details_expander")):
                     st.write("**Distribución de precios proyectados al final del horizonte:**")
                     p_df = pd.DataFrame([mc_sum.get("percentiles_end", {})], index=["Precio proyectado"])
                     st.dataframe(p_df, width="stretch")
@@ -905,7 +987,7 @@ with tabs[3]:
                     })
                     st.dataframe(prob_df, width="stretch", hide_index=True)
     else:
-        st.info("Ajusta los parámetros y pulsa **Calcular pronóstico**.")
+        st.info(t("forecast.prompt_calculate"))
 
     if learning_mode:
         render_guide("forecast")
@@ -923,9 +1005,9 @@ with tabs[4]:
     spot_val = float(quote.get("price") or (hist["Close"].iloc[-1] if not hist.empty else 100.0))
 
     sub_tabs = st.tabs([
-        "🌐 Superficie 3D de Volatilidad (IV)",
-        "🗺️ Mapas de Calor Black-Scholes",
-        "🧮 Calculadora de Griegas & Payoff",
+        t("options.tab_surface_3d"),
+        t("options.tab_heatmaps"),
+        t("options.tab_greeks_payoff"),
     ])
 
     # 1. Superficie 3D
@@ -933,12 +1015,12 @@ with tabs[4]:
         col_s1, col_s2 = st.columns([3, 1])
         with col_s2:
             force_synthetic = st.checkbox(
-                "Simular superficie paramétrica",
+                t("options.simulate_surface"),
                 value=is_colombian_ticker(symbol),
                 help="Genera la superficie con modelo paramétrico de sonrisa de volatilidad (ideal para acciones colombianas o pruebas hipotéticas).",
             )
             sim_vol = st.slider(
-                "Volatilidad base de referencia (%)",
+                t("options.base_volatility"),
                 min_value=10.0,
                 max_value=120.0,
                 value=30.0,
@@ -1150,7 +1232,7 @@ with tabs[5]:
 
     with port_col2:
         if len(selected_portfolio_tickers) < 2:
-            st.info("📌 Por favor selecciona o sube al menos dos (2) activos para ejecutar la optimización.")
+            st.info(t("portfolio.min_assets_prompt"))
         else:
             with st.spinner("Descargando precios sincronizados y calculando covarianza Ledoit-Wolf..."):
                 prices_df = load_portfolio_prices(tuple(selected_portfolio_tickers), port_period)
@@ -1177,31 +1259,31 @@ with tabs[5]:
                     # KPIs Superiores
                     k1, k2, k3, k4 = st.columns(4)
                     k1.metric(
-                        "Retorno Anual Esperado",
+                        t("portfolio.expected_annual_return"),
                         f"{port_result.expected_annual_return_pct:+.2f}%",
                         help="Rendimiento anualizado medio esperado de la cartera óptima.",
                     )
                     k2.metric(
-                        "Volatilidad Anualizada",
+                        t("portfolio.annual_volatility"),
                         f"{port_result.annual_volatility_pct:.2f}%",
                         help="Desviación típica anualizada esperada (riesgo total).",
                     )
                     k3.metric(
-                        "Sharpe Ratio",
+                        t("portfolio.sharpe_ratio"),
                         f"{port_result.sharpe_ratio:.2f}",
                         help="Rendimiento excedente sobre la tasa libre de riesgo dividido por volatilidad.",
                     )
                     k4.metric(
-                        "N° Efectivo de Activos",
+                        t("portfolio.effective_assets"),
                         f"{port_result.effective_n_assets:.2f} / {len(valid_assets)}",
                         help="Inverso del índice Herfindahl (1 / sum(w^2)). Mide la diversificación real alcanzada.",
                     )
 
                     # Subtabs de visualización
                     port_subtabs = st.tabs([
-                        "📈 Frontera Eficiente & Monte Carlo",
-                        "🍩 Distribución de Pesos & Rebalanceo",
-                        "📉 Backtest Histórico Acumulado",
+                        t("portfolio.tab_efficient_frontier"),
+                        t("portfolio.tab_weights"),
+                        t("portfolio.tab_backtest"),
                     ])
 
                     with port_subtabs[0]:
@@ -1233,7 +1315,7 @@ with tabs[5]:
                         # Botón para descargar CSV de asignación de pesos
                         csv_weights_data = weights_df.to_csv(index=False).encode("utf-8")
                         st.download_button(
-                            label="📥 Descargar Asignación de Pesos (CSV)",
+                            label=t("portfolio.download_weights_csv"),
                             data=csv_weights_data,
                             file_name=f"stockwise_portfolio_allocation_{selected_obj}.csv",
                             mime="text/csv",
@@ -1265,17 +1347,17 @@ with tabs[6]:
     news_items = events_info.get("news", [])
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Próximo balance", up.get("earnings_date") or "—", help="Fecha programada por la empresa para reportar resultados trimestrales.")
-    c2.metric("Fecha Ex-Dividendo", up.get("ex_dividend_date") or "—", help="Fecha límite: debes ser titular de la acción antes de este día para tener derecho al dividendo.")
+    c1.metric(t("events.next_earnings"), up.get("earnings_date") or "—", help="Fecha programada por la empresa para reportar resultados trimestrales.")
+    c2.metric(t("events.ex_dividend_date"), up.get("ex_dividend_date") or "—", help="Fecha límite: debes ser titular de la acción antes de este día para tener derecho al dividendo.")
     sent_label = sent.get("overall_label", "Neutral")
     c3.metric(
-        "Sentimiento de titulares",
+        t("events.headline_sentiment"),
         sent_label,
         f"{sent.get('positive_count', 0)} pos / {sent.get('negative_count', 0)} neg",
         delta_color="off",
-        help=get_help("sentiment"),
+        help=get_help("sentiment", lang=lang),
     )
-    c4.metric("Noticias analizadas", sent.get("total_news", 0))
+    c4.metric(t("events.analyzed_news"), sent.get("total_news", 0))
 
     if up.get("earnings_average") is not None or up.get("revenue_average") is not None:
         ea_txt = f"EPS estimado: **{up.get('earnings_average')}**" if up.get("earnings_average") is not None else ""
@@ -1289,7 +1371,7 @@ with tabs[6]:
 
     # Balances trimestrales y reacción del mercado
     if earnings_hist:
-        st.subheader("🏛️ Reportes trimestrales de utilidades y reacción del precio")
+        st.subheader(t("events.earnings_reaction_title"))
         e_rows = []
         for e in earnings_hist:
             m = e.get("market_reaction") or {}
@@ -1308,14 +1390,18 @@ with tabs[6]:
         st.dataframe(pd.DataFrame(e_rows), hide_index=True, width="stretch")
 
     # Feed de noticias con sentimiento y análisis de impacto
-    st.subheader("📰 Titulares recientes y análisis de impacto")
+    st.subheader(t("events.headlines_impact_title"))
     if not news_items:
         st.caption("No se encontraron noticias recientes indexadas para este activo.")
     else:
         for item in news_items:
             sentiment = item.get("sentiment", {})
             s_label = sentiment.get("label", "Neutral")
-            badge = "🟢 Positivo" if s_label == "Positivo" else ("🔴 Negativo" if s_label == "Negativo" else "⚪ Neutral")
+            badge = (
+                t("events.sentiment_positive")
+                if s_label == "Positivo"
+                else (t("events.sentiment_negative") if s_label == "Negativo" else t("events.sentiment_neutral"))
+            )
 
             impact = item.get("market_impact")
             with st.container(border=True):
@@ -1350,18 +1436,18 @@ with tabs[6]:
 with tabs[7]:
     colombian = [o["symbol"] for o in list_colombian_stocks()]
     universe = sorted(set(colombian + POPULAR_US + [symbol]))
-    default = [symbol] + [t for t in (["ISA.CL", "ECOPETROL.CL"] if is_colombian_ticker(symbol) else ["MSFT", "SPY"])
-                          if t != symbol]
-    picked = st.multiselect("Activos a comparar", universe, default=default[:3])
-    extra = st.text_input("Otros tickers (separados por coma)", placeholder="NFLX, BOGOTA")
-    tickers: list[str] = list(dict.fromkeys(picked + [resolve_ticker(t) for t in extra.split(",") if t.strip()]))
+    default = [symbol] + [t_item for t_item in (["ISA.CL", "ECOPETROL.CL"] if is_colombian_ticker(symbol) else ["MSFT", "SPY"])
+                          if t_item != symbol]
+    picked = st.multiselect(t("compare.assets_to_compare"), universe, default=default[:3])
+    extra = st.text_input(t("compare.other_tickers"), placeholder="NFLX, BOGOTA")
+    tickers: list[str] = list(dict.fromkeys(picked + [resolve_ticker(t_item) for t_item in extra.split(",") if t_item.strip()]))
 
     if len(tickers) < 2:
-        st.info("Selecciona al menos dos activos.")
+        st.info(t("compare.select_min_two"))
     else:
         with st.spinner("Comparando…"):
             closes = load_closes(tuple(tickers), period)
-        missing = [t for t in tickers if t not in closes.columns]
+        missing = [t_item for t_item in tickers if t_item not in closes.columns]
         if missing:
             st.warning(f"Sin datos para: {', '.join(missing)}")
         try:
@@ -1373,14 +1459,18 @@ with tabs[7]:
             if "correlation" in figs:
                 st.plotly_chart(figs["correlation"], width="stretch")
             rows = []
-            for t in closes.columns:
-                h = load_history(t, period)
+            for t_item in closes.columns:
+                h = load_history(t_item, period)
                 if len(h) >= 10:
                     r = calculate_risk_metrics(h)
-                    rows.append({"Ticker": t, "Retorno %": r["cumulative_return_pct"],
-                                 "Volatilidad %": r["annualized_volatility_pct"], "Máx. drawdown %": r["max_drawdown_pct"]})
+                    rows.append({
+                        t("compare.col_ticker"): t_item,
+                        t("compare.col_return"): r["cumulative_return_pct"],
+                        t("compare.col_volatility"): r["annualized_volatility_pct"],
+                        t("compare.col_drawdown"): r["max_drawdown_pct"],
+                    })
             if rows:
-                st.dataframe(pd.DataFrame(rows).sort_values("Retorno %", ascending=False), hide_index=True,
+                st.dataframe(pd.DataFrame(rows).sort_values(t("compare.col_return"), ascending=False), hide_index=True,
                              width="stretch")
             st.caption("Los activos pueden cotizar en monedas distintas (COP/USD): la comparación usa rendimiento "
                        "relativo en la moneda local de cada uno, no convierte por TRM. "
@@ -1399,9 +1489,4 @@ with tabs[8]:
 # Pie de página global (Descargo de Responsabilidad)
 # ---------------------------------------------------------------------------
 st.divider()
-st.caption(
-    "⚖️ **Descargo de Responsabilidad:** La información y herramientas provistas en StockWise tienen carácter "
-    "estrictamente educativo, analítico y de investigación. En ningún caso constituyen asesoramiento financiero, "
-    "recomendación de compra/venta de activos ni aval crediticio. Los rendimientos pasados y modelos predictivos "
-    "no garantizan resultados futuros. Cada usuario asume la responsabilidad exclusiva de sus decisiones de inversión."
-)
+st.caption(t("common.global_disclaimer"))

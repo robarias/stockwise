@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import os
 import re
 import shutil
 import subprocess
@@ -91,14 +90,14 @@ def parse_pyproject(pyproject_path: Path) -> dict[str, set[str]]:
     main_deps = {dep for dep in main_deps if dep}
 
     opt_deps: set[str] = set()
-    for group, deps in project.get("optional-dependencies", {}).items():
+    for _group, deps in project.get("optional-dependencies", {}).items():
         for dep in deps:
             name = extract_package_name_from_req(dep)
             if name:
                 opt_deps.add(name)
 
     dev_deps: set[str] = set()
-    for group, deps in data.get("dependency-groups", {}).items():
+    for _group, deps in data.get("dependency-groups", {}).items():
         for dep in deps:
             name = extract_package_name_from_req(dep)
             if name:
@@ -117,7 +116,7 @@ def parse_requirements(req_path: Path) -> set[str]:
         return set()
 
     pkgs: set[str] = set()
-    with open(req_path, "r", encoding="utf-8") as f:
+    with open(req_path, encoding="utf-8") as f:
         for line in f:
             pkg = extract_package_name_from_req(line)
             if pkg:

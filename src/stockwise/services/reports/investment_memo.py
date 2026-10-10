@@ -4,6 +4,7 @@ Generador de Memorandos Ejecutivos de Inversión en formato PDF.
 Compila un reporte institucional de 2 páginas con diseño premium que sintetiza:
 1. Resumen ejecutivo, scorecard de métricas clave y gráfico técnico/volumen de alta resolución.
 2. Análisis fundamental detallado, modelado de riesgo GARCH/VaR, pronóstico cuantitativo y eventos corporativos.
+Soporte completo bilingüe (Español / Inglés).
 """
 
 from __future__ import annotations
@@ -131,6 +132,7 @@ def _generate_technical_chart_image(
     df: pd.DataFrame,
     symbol: str,
     currency: str,
+    lang: str = "es",
 ) -> io.BytesIO:
     """
     Genera imagen en memoria del gráfico técnico (Velas/Precio + SMAs + Bandas Bollinger + Volumen).
@@ -157,14 +159,16 @@ def _generate_technical_chart_image(
     x_dates = plot_df.index
 
     # 1. Bandas de Bollinger (área sombreada)
+    bb_label = "Bollinger Bands (20, 2)" if lang == "en" else "Bandas Bollinger (20, 2)"
     if "bb_upper" in ind_df.columns and "bb_lower" in ind_df.columns:
         ax_main.fill_between(
             x_dates, ind_df["bb_upper"], ind_df["bb_lower"],
-            color="#0284c7", alpha=0.08, label="Bandas Bollinger (20, 2)"
+            color="#0284c7", alpha=0.08, label=bb_label,
         )
 
     # 2. Curva de Precio de Cierre
-    ax_main.plot(x_dates, plot_df["Close"], color="#0f172a", linewidth=1.6, label="Precio Cierre")
+    close_label = "Closing Price" if lang == "en" else "Precio Cierre"
+    ax_main.plot(x_dates, plot_df["Close"], color="#0f172a", linewidth=1.6, label=close_label)
 
     # 3. Medias Móviles
     if "sma_50" in ind_df.columns and not ind_df["sma_50"].dropna().empty:
@@ -173,11 +177,17 @@ def _generate_technical_chart_image(
         ax_main.plot(x_dates, ind_df["sma_200"], color="#8b5cf6", linewidth=1.3, linestyle="-.", label="SMA 200")
 
     # 4. Formato panel principal
-    ax_main.set_ylabel(f"Precio ({currency})", fontsize=8.5, fontweight="bold", color="#1e293b")
+    price_axis_label = f"Price ({currency})" if lang == "en" else f"Precio ({currency})"
+    chart_title = (
+        f"{symbol} - Technical Price Action & Recent Trend"
+        if lang == "en"
+        else f"{symbol} - Evolución Técnica y Tendencia Reciente"
+    )
+    ax_main.set_ylabel(price_axis_label, fontsize=8.5, fontweight="bold", color="#1e293b")
     ax_main.grid(True, linestyle=":", alpha=0.5, color="#cbd5e1")
     ax_main.tick_params(colors="#475569", labelsize=7.5)
     ax_main.legend(loc="upper left", framealpha=0.85, fontsize=7.0, edgecolor="#e2e8f0")
-    ax_main.set_title(f"{symbol} - Evolución Técnica y Tendencia Reciente", fontsize=9.5, fontweight="bold", color="#0f172a", pad=5)
+    ax_main.set_title(chart_title, fontsize=9.5, fontweight="bold", color="#0f172a", pad=5)
 
     # 5. Panel de Volumen
     if "Volume" in plot_df.columns:
@@ -189,7 +199,8 @@ def _generate_technical_chart_image(
         if not vol_sma20.dropna().empty:
             ax_vol.plot(x_dates, vol_sma20, color="#64748b", linewidth=1.0, linestyle=":")
 
-    ax_vol.set_ylabel("Volumen", fontsize=7.5, color="#475569")
+    vol_axis_label = "Volume" if lang == "en" else "Volumen"
+    ax_vol.set_ylabel(vol_axis_label, fontsize=7.5, color="#475569")
     ax_vol.grid(True, linestyle=":", alpha=0.4, color="#cbd5e1")
     ax_vol.tick_params(colors="#475569", labelsize=7.5)
     ax_vol.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, p: _fmt_large(x, default="0")))
@@ -209,11 +220,12 @@ def _generate_technical_chart_image(
 # Clase PDF del Memorando Institucional
 # ---------------------------------------------------------------------------
 class _InvestmentMemoPDF(FPDF):
-    def __init__(self, symbol: str, company_name: str, currency: str):
+    def __init__(self, symbol: str, company_name: str, currency: str, lang: str = "es"):
         super().__init__(orientation="P", unit="mm", format="A4")
         self.symbol = symbol
         self.company_name = company_name
         self.currency = currency
+        self.lang = lang
         self.set_auto_page_break(auto=False)
         self.set_margins(12, 12, 12)
 
@@ -228,8 +240,12 @@ class _InvestmentMemoPDF(FPDF):
         self.set_font("Helvetica", size=7)
         self.set_text_color(100, 116, 139)  # Slate 500
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M UTC")
-        self.cell(90, 6, _clean_text(f"StockWise Quantitative Intelligence - Emisión: {stamp}"), align="L")
-        self.cell(96, 6, _clean_text(f"Página {self.page_no()} de 2 - Confidencial / Informativo"), align="R")
+        if self.lang == "en":
+            self.cell(90, 6, _clean_text(f"StockWise Quantitative Intelligence - Issued: {stamp}"), align="L")
+            self.cell(96, 6, _clean_text(f"Page {self.page_no()} of 2 - Confidential / Informational"), align="R")
+        else:
+            self.cell(90, 6, _clean_text(f"StockWise Quantitative Intelligence - Emisión: {stamp}"), align="L")
+            self.cell(96, 6, _clean_text(f"Página {self.page_no()} de 2 - Confidencial / Informativo"), align="R")
 
 
 # ---------------------------------------------------------------------------
@@ -244,10 +260,12 @@ def generate_investment_memo(
     indicators: dict[str, Any] | None = None,
     events: dict[str, Any] | None = None,
     forecast: dict[str, Any] | None = None,
+    lang: str = "es",
 ) -> bytes:
     """
     Genera el Memorando Ejecutivo de Inversión en PDF (2 páginas) retornando sus bytes crudos.
     Si algún parámetro es None, se consulta y calcula automáticamente.
+    Soporta idiomas 'es' (Español) y 'en' (Inglés).
     """
     symbol_clean = resolve_ticker(symbol)
     stock = yf.Ticker(symbol_clean)
@@ -350,7 +368,7 @@ def generate_investment_memo(
         forecast = {}
 
     # Inicializar documento FPDF
-    pdf = _InvestmentMemoPDF(symbol=symbol_clean, company_name=company_name, currency=currency)
+    pdf = _InvestmentMemoPDF(symbol=symbol_clean, company_name=company_name, currency=currency, lang=lang)
 
     # =========================================================================
     # PÁGINA 1: Encabezado, Resumen Ejecutivo, Scorecard y Gráfico Técnico
@@ -365,17 +383,25 @@ def generate_investment_memo(
 
     # Badge de Mercado y Moneda a la derecha
     market_tag = "BVC (Colombia)" if is_colombian_ticker(symbol_clean) else "US Equity / ETF"
+    curr_label = "Currency:" if lang == "en" else "Divisa:"
     pdf.set_font("Helvetica", "B", 8.5)
     pdf.set_text_color(2, 132, 199)  # #0284C7
-    pdf.cell(66, 8, _clean_text(f"{market_tag} - Divisa: {currency}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="R")
+    pdf.cell(66, 8, _clean_text(f"{market_tag} - {curr_label} {currency}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="R")
 
     # Subtítulo institucional
     pdf.set_font("Helvetica", size=8.5)
     pdf.set_text_color(100, 116, 139)
+    sec_label = "Sector:" if lang == "en" else "Sector:"
+    ind_label = "Industry:" if lang == "en" else "Industria:"
+    memo_subtitle = (
+        "Quantitative Investment Memorandum & Risk Diagnostic"
+        if lang == "en"
+        else "Memorando Cuantitativo de Inversión y Diagnóstico de Riesgo"
+    )
     sec_ind = ""
     if fundamentals.get("sector") or fundamentals.get("industry"):
-        sec_ind = f"Sector: {fundamentals.get('sector') or '-'} | Industria: {fundamentals.get('industry') or '-'} - "
-    pdf.cell(186, 5, _clean_text(f"{sec_ind}Memorando Cuantitativo de Inversión y Diagnóstico de Riesgo"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
+        sec_ind = f"{sec_label} {fundamentals.get('sector') or '-'} | {ind_label} {fundamentals.get('industry') or '-'} - "
+    pdf.cell(186, 5, _clean_text(f"{sec_ind}{memo_subtitle}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
     pdf.ln(2)
 
     # Tarjeta de Resumen Ejecutivo / Perfil
@@ -386,15 +412,23 @@ def generate_investment_memo(
     pdf.set_xy(15, pdf.get_y() + 2)
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(180, 4, "TESIS & RESUMEN DEL EMISOR", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    thesis_title = "INVESTMENT THESIS & ISSUER SUMMARY" if lang == "en" else "TESIS & RESUMEN DEL EMISOR"
+    pdf.cell(180, 4, thesis_title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    profile_text = get_company_description(symbol_clean)
+    profile_text = get_company_description(symbol_clean, lang=lang)
     if not profile_text or profile_text == "-":
-        profile_text = (
-            f"{company_name} es una empresa cotizada en {market_tag}. "
-            "El presente análisis compila indicadores de valuación, régimen de volatilidad heterocedástica GARCH "
-            "y proyección estocástica a 30 días hábiles."
-        )
+        if lang == "en":
+            profile_text = (
+                f"{company_name} is a listed corporation traded on {market_tag}. "
+                "This report synthesizes valuation multiples, heteroskedastic GARCH risk dynamics, "
+                "and a 30-day stochastic forecast."
+            )
+        else:
+            profile_text = (
+                f"{company_name} es una empresa cotizada en {market_tag}. "
+                "El presente análisis compila indicadores de valuación, régimen de volatilidad heterocedástica GARCH "
+                "y proyección estocástica a 30 días hábiles."
+            )
     if len(profile_text) > 230:
         profile_text = profile_text[:227] + "..."
 
@@ -426,18 +460,39 @@ def generate_investment_memo(
     if risk_metrics.get("conditional_risk"):
         var_95 = risk_metrics["conditional_risk"].get("var_metrics", {}).get("var_95_1d_pct")
 
-    scorecard_data = [
-        # Fila 1
-        ("ÚLTIMO PRECIO", _fmt_price(current_price, currency), f"{day_chg:+.2f}% hoy" if day_chg is not None else "-"),
-        ("RETORNO 1 AÑO", f"{one_yr_ret:+.2f}%" if one_yr_ret is not None else "-", "Desempeño relativo"),
-        ("CAPITALIZACIÓN", f"{_fmt_large(mkt_cap)} {currency}", "Valor en bolsa"),
-        ("MÚLTIPLO P/E", f"{trailing_pe:.1f}x" if trailing_pe else "-", interpret_pe(trailing_pe)[:14] if trailing_pe else "-"),
-        # Fila 2
-        ("DIVIDEND YIELD", f"{div_yield:.2f}%" if div_yield else "-", "Rentab. por dividendo"),
-        ("VOLATILIDAD ANUAL", f"{ann_vol:.1f}%" if ann_vol else "-", interpret_volatility(ann_vol)[:14] if ann_vol else "-"),
-        ("MÁX. DRAWDOWN", f"{max_dd:.1f}%" if max_dd else "-", interpret_drawdown(max_dd)[:14] if max_dd else "-"),
-        ("VaR DIARIO (95%)", f"{var_95:+.2f}%" if var_95 else "-", "Riesgo extremo 1d"),
-    ]
+    today_suffix = "today" if lang == "en" else "hoy"
+    day_chg_str = f"{day_chg:+.2f}% {today_suffix}" if day_chg is not None else "-"
+    rel_perf_str = "Relative performance" if lang == "en" else "Desempeño relativo"
+    equity_val_str = "Equity valuation" if lang == "en" else "Valor en bolsa"
+    cash_yield_str = "Annual cash yield" if lang == "en" else "Rentab. por dividendo"
+    tail_risk_str = "1-day tail risk" if lang == "en" else "Riesgo extremo 1d"
+
+    pe_reading = interpret_pe(trailing_pe, lang=lang)[:18] if trailing_pe else "-"
+    vol_reading = interpret_volatility(ann_vol, lang=lang)[:18] if ann_vol else "-"
+    dd_reading = interpret_drawdown(max_dd, lang=lang)[:18] if max_dd else "-"
+
+    if lang == "en":
+        scorecard_data = [
+            ("LAST PRICE", _fmt_price(current_price, currency), day_chg_str),
+            ("1-YEAR RETURN", f"{one_yr_ret:+.2f}%" if one_yr_ret is not None else "-", rel_perf_str),
+            ("MARKET CAP", f"{_fmt_large(mkt_cap)} {currency}", equity_val_str),
+            ("P/E MULTIPLE", f"{trailing_pe:.1f}x" if trailing_pe else "-", pe_reading),
+            ("DIVIDEND YIELD", f"{div_yield:.2f}%" if div_yield else "-", cash_yield_str),
+            ("ANNUAL VOLATILITY", f"{ann_vol:.1f}%" if ann_vol else "-", vol_reading),
+            ("MAX DRAWDOWN", f"{max_dd:.1f}%" if max_dd else "-", dd_reading),
+            ("1D VaR (95%)", f"{var_95:+.2f}%" if var_95 else "-", tail_risk_str),
+        ]
+    else:
+        scorecard_data = [
+            ("ÚLTIMO PRECIO", _fmt_price(current_price, currency), day_chg_str),
+            ("RETORNO 1 AÑO", f"{one_yr_ret:+.2f}%" if one_yr_ret is not None else "-", rel_perf_str),
+            ("CAPITALIZACIÓN", f"{_fmt_large(mkt_cap)} {currency}", equity_val_str),
+            ("MÚLTIPLO P/E", f"{trailing_pe:.1f}x" if trailing_pe else "-", pe_reading),
+            ("DIVIDEND YIELD", f"{div_yield:.2f}%" if div_yield else "-", cash_yield_str),
+            ("VOLATILIDAD ANUAL", f"{ann_vol:.1f}%" if ann_vol else "-", vol_reading),
+            ("MÁX. DRAWDOWN", f"{max_dd:.1f}%" if max_dd else "-", dd_reading),
+            ("VaR DIARIO (95%)", f"{var_95:+.2f}%" if var_95 else "-", tail_risk_str),
+        ]
 
     for idx, (title, main_val, sub_val) in enumerate(scorecard_data):
         row = idx // 4
@@ -470,7 +525,7 @@ def generate_investment_memo(
     # Gráfico Técnico Incrustado
     pdf.set_y(80)
     if not history.empty and len(history) >= 15:
-        chart_buf = _generate_technical_chart_image(history, symbol_clean, currency)
+        chart_buf = _generate_technical_chart_image(history, symbol_clean, currency, lang=lang)
         pdf.image(chart_buf, x=12, y=80, w=186)
     else:
         pdf.set_xy(12, 80)
@@ -479,7 +534,12 @@ def generate_investment_memo(
         pdf.set_xy(12, 115)
         pdf.set_font("Helvetica", size=9)
         pdf.set_text_color(100, 116, 139)
-        pdf.cell(186, 6, "Historial insuficiente para renderizar el gráfico técnico institucional.", align="C")
+        no_chart_msg = (
+            "Insufficient price history to render institutional technical chart."
+            if lang == "en"
+            else "Historial insuficiente para renderizar el gráfico técnico institucional."
+        )
+        pdf.cell(186, 6, no_chart_msg, align="C")
 
     # Barra Inferior de Señales Técnicas Rápidas
     pdf.set_y(168)
@@ -496,16 +556,19 @@ def generate_investment_memo(
     pdf.set_xy(15, 170)
     pdf.set_font("Helvetica", "B", 7.5)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(60, 4, "SEÑALES TÉCNICAS CLAVE", new_x=XPos.RIGHT, new_y=YPos.TOP)
+    tech_signals_title = "KEY TECHNICAL SIGNALS" if lang == "en" else "SEÑALES TÉCNICAS CLAVE"
+    pdf.cell(60, 4, tech_signals_title, new_x=XPos.RIGHT, new_y=YPos.TOP)
     pdf.cell(60, 4, _clean_text(f"RSI (14): {rsi_val if rsi_val else '-'} ({rsi_status[:18]})"), new_x=XPos.RIGHT, new_y=YPos.TOP)
     pdf.cell(60, 4, _clean_text(f"MACD: {macd_status[:24]}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     ma_notes = indicators.get("analysis_notes", [])
-    ma_summary = " - ".join(ma_notes[:2]) if ma_notes else "Precio en rangos de consolidación."
+    default_trend = "Price in consolidation range." if lang == "en" else "Precio en rangos de consolidación."
+    ma_summary = " - ".join(ma_notes[:2]) if ma_notes else default_trend
+    trend_label = "Trend Alignment:" if lang == "en" else "Alineación de Tendencia:"
     pdf.set_xy(15, 176)
     pdf.set_font("Helvetica", size=7)
     pdf.set_text_color(71, 85, 105)
-    pdf.cell(180, 4, _clean_text(f"Alineación de Tendencia: {ma_summary[:115]}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(180, 4, _clean_text(f"{trend_label} {ma_summary[:115]}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     # =========================================================================
     # PÁGINA 2: Fundamental, Riesgo GARCH, Pronóstico y Eventos
@@ -516,10 +579,20 @@ def generate_investment_memo(
     # Cabecera de Página 2
     pdf.set_font("Helvetica", "B", 13)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(120, 7, _clean_text(f"{symbol_clean} - Diagnóstico Cuantitativo Detallado"), new_x=XPos.RIGHT, new_y=YPos.TOP, align="L")
+    p2_title = (
+        f"{symbol_clean} - Detailed Quantitative Diagnostic"
+        if lang == "en"
+        else f"{symbol_clean} - Diagnóstico Cuantitativo Detallado"
+    )
+    p2_sub = (
+        "Statistical & Fundamental Models"
+        if lang == "en"
+        else "Modelos Estadísticos & Fundamentales"
+    )
+    pdf.cell(120, 7, _clean_text(p2_title), new_x=XPos.RIGHT, new_y=YPos.TOP, align="L")
     pdf.set_font("Helvetica", size=8)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(66, 7, "Modelos Estadísticos & Fundamentales", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="R")
+    pdf.cell(66, 7, p2_sub, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="R")
     pdf.ln(1)
 
     # -------------------------------------------------------------------------
@@ -537,16 +610,27 @@ def generate_investment_memo(
     pdf.set_xy(15, 21)
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_text_color(2, 132, 199)
-    pdf.cell(85, 4, "VALUACIÓN & MERCADO", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    val_header = "VALUATION & MARKET" if lang == "en" else "VALUACIÓN & MERCADO"
+    pdf.cell(85, 4, val_header, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    val_rows = [
-        ("Trailing P/E (12m)", f"{val_data.get('trailing_pe'):.2f}x" if val_data.get('trailing_pe') else "-"),
-        ("Forward P/E", f"{val_data.get('forward_pe'):.2f}x" if val_data.get('forward_pe') else "-"),
-        ("PEG Ratio", f"{val_data.get('peg_ratio'):.2f}" if val_data.get('peg_ratio') else "-"),
-        ("Precio / Valor Libro (P/B)", f"{val_data.get('price_to_book'):.2f}x" if val_data.get('price_to_book') else "-"),
-        ("EV / EBITDA", f"{val_data.get('enterprise_to_ebitda'):.2f}x" if val_data.get('enterprise_to_ebitda') else "-"),
-        ("Precio Objetivo Medio", _fmt_price(fundamentals.get("targets", {}).get("target_mean_price"), currency)),
-    ]
+    if lang == "en":
+        val_rows = [
+            ("Trailing P/E (12m)", f"{val_data.get('trailing_pe'):.2f}x" if val_data.get('trailing_pe') else "-"),
+            ("Forward P/E", f"{val_data.get('forward_pe'):.2f}x" if val_data.get('forward_pe') else "-"),
+            ("PEG Ratio", f"{val_data.get('peg_ratio'):.2f}" if val_data.get('peg_ratio') else "-"),
+            ("Price / Book (P/B)", f"{val_data.get('price_to_book'):.2f}x" if val_data.get('price_to_book') else "-"),
+            ("EV / EBITDA", f"{val_data.get('enterprise_to_ebitda'):.2f}x" if val_data.get('enterprise_to_ebitda') else "-"),
+            ("Mean Target Price", _fmt_price(fundamentals.get("targets", {}).get("target_mean_price"), currency)),
+        ]
+    else:
+        val_rows = [
+            ("Trailing P/E (12m)", f"{val_data.get('trailing_pe'):.2f}x" if val_data.get('trailing_pe') else "-"),
+            ("Forward P/E", f"{val_data.get('forward_pe'):.2f}x" if val_data.get('forward_pe') else "-"),
+            ("PEG Ratio", f"{val_data.get('peg_ratio'):.2f}" if val_data.get('peg_ratio') else "-"),
+            ("Precio / Valor Libro (P/B)", f"{val_data.get('price_to_book'):.2f}x" if val_data.get('price_to_book') else "-"),
+            ("EV / EBITDA", f"{val_data.get('enterprise_to_ebitda'):.2f}x" if val_data.get('enterprise_to_ebitda') else "-"),
+            ("Precio Objetivo Medio", _fmt_price(fundamentals.get("targets", {}).get("target_mean_price"), currency)),
+        ]
 
     y_val = 27
     for label, v in val_rows:
@@ -563,7 +647,8 @@ def generate_investment_memo(
     pdf.set_xy(110, 21)
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_text_color(2, 132, 199)
-    pdf.cell(85, 4, "RENTABILIDAD & SOLVENCIA", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    prof_header = "PROFITABILITY & SOLVENCY" if lang == "en" else "RENTABILIDAD & SOLVENCIA"
+    pdf.cell(85, 4, prof_header, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pm = prof_data.get("profit_margins")
     om = prof_data.get("operating_margins")
@@ -572,14 +657,24 @@ def generate_investment_memo(
     cr = prof_data.get("current_ratio")
     fcf = prof_data.get("free_cashflow")
 
-    prof_rows = [
-        ("Margen Neto", f"{pm * 100:.1f}%" if pm is not None else "-"),
-        ("Margen Operativo", f"{om * 100:.1f}%" if om is not None else "-"),
-        ("ROE (Rentab. Patrimonio)", f"{roe * 100:.1f}%" if roe is not None else "-"),
-        ("Deuda / Patrimonio (D/E)", f"{de:.2f}" if de is not None else "-"),
-        ("Razón Corriente (Liquidez)", f"{cr:.2f}" if cr is not None else "-"),
-        ("Flujo de Caja Libre (FCF)", f"{_fmt_large(fcf)} {currency}" if fcf is not None else "-"),
-    ]
+    if lang == "en":
+        prof_rows = [
+            ("Net Margin", f"{pm * 100:.1f}%" if pm is not None else "-"),
+            ("Operating Margin", f"{om * 100:.1f}%" if om is not None else "-"),
+            ("ROE (Return on Equity)", f"{roe * 100:.1f}%" if roe is not None else "-"),
+            ("Debt / Equity (D/E)", f"{de:.2f}" if de is not None else "-"),
+            ("Current Ratio (Liquidity)", f"{cr:.2f}" if cr is not None else "-"),
+            ("Free Cash Flow (FCF)", f"{_fmt_large(fcf)} {currency}" if fcf is not None else "-"),
+        ]
+    else:
+        prof_rows = [
+            ("Margen Neto", f"{pm * 100:.1f}%" if pm is not None else "-"),
+            ("Margen Operativo", f"{om * 100:.1f}%" if om is not None else "-"),
+            ("ROE (Rentab. Patrimonio)", f"{roe * 100:.1f}%" if roe is not None else "-"),
+            ("Deuda / Patrimonio (D/E)", f"{de:.2f}" if de is not None else "-"),
+            ("Razón Corriente (Liquidez)", f"{cr:.2f}" if cr is not None else "-"),
+            ("Flujo de Caja Libre (FCF)", f"{_fmt_large(fcf)} {currency}" if fcf is not None else "-"),
+        ]
 
     y_prof = 27
     for label, v in prof_rows:
@@ -602,22 +697,55 @@ def generate_investment_memo(
     pdf.set_xy(15, 80)
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(180, 4, "GESTIÓN CUANTITATIVA DEL RIESGO (GARCH & VALUE AT RISK)", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    risk_sec_title = (
+        "QUANTITATIVE RISK MODELING (GARCH & VALUE AT RISK)"
+        if lang == "en"
+        else "GESTIÓN CUANTITATIVA DEL RIESGO (GARCH & VALUE AT RISK)"
+    )
+    pdf.cell(180, 4, risk_sec_title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     cond_risk = risk_metrics.get("conditional_risk", {}) or {}
-    regime = cond_risk.get("volatility_regime", "Volatilidad normal")
+    regime = cond_risk.get("volatility_regime", "Normal" if lang == "en" else "Volatilidad normal")
     curr_cond_vol = cond_risk.get("current_volatility_annualized_pct")
     hist_mean_vol = cond_risk.get("historical_mean_volatility_annualized_pct")
     vm = cond_risk.get("var_metrics", {})
     var_1d = vm.get("var_95_1d_pct")
     cvar_1d = vm.get("cvar_95_1d_pct")
 
-    risk_kpis = [
-        ("Régimen de Volatilidad", regime),
-        ("Vol. Condicional Actual", f"{curr_cond_vol:.1f}%" if curr_cond_vol else "-"),
-        ("Media Histórica Vol.", f"{hist_mean_vol:.1f}%" if hist_mean_vol else "-"),
-        ("VaR 1d (95%) / CVaR", f"{var_1d:+.2f}% / {cvar_1d:+.2f}%" if var_1d and cvar_1d else "-"),
-    ]
+    if lang == "en":
+        risk_kpis = [
+            ("Volatility Regime", regime),
+            ("Current Cond. Volatility", f"{curr_cond_vol:.1f}%" if curr_cond_vol else "-"),
+            ("Historical Mean Vol.", f"{hist_mean_vol:.1f}%" if hist_mean_vol else "-"),
+            ("1d VaR (95%) / CVaR", f"{var_1d:+.2f}% / {cvar_1d:+.2f}%" if var_1d and cvar_1d else "-"),
+        ]
+        var_expl = (
+            f"The 95% Value at Risk indicates that on 95% of trading sessions the expected daily loss will not exceed "
+            f"{abs(var_1d):.2f}%." if var_1d else "VaR estimate unavailable."
+        )
+        cvar_expl = (
+            f" In extreme 5% tail scenarios, the expected shortfall (CVaR) averages {abs(cvar_1d):.2f}%."
+            if cvar_1d
+            else ""
+        )
+        risk_paragraph = f"{var_expl}{cvar_expl} Current risk regime is classified as '{regime}'."
+    else:
+        risk_kpis = [
+            ("Régimen de Volatilidad", regime),
+            ("Vol. Condicional Actual", f"{curr_cond_vol:.1f}%" if curr_cond_vol else "-"),
+            ("Media Histórica Vol.", f"{hist_mean_vol:.1f}%" if hist_mean_vol else "-"),
+            ("VaR 1d (95%) / CVaR", f"{var_1d:+.2f}% / {cvar_1d:+.2f}%" if var_1d and cvar_1d else "-"),
+        ]
+        var_expl = (
+            f"El Value at Risk al 95% indica que en el 95% de las jornadas la pérdida diaria estimada no excederá "
+            f"{abs(var_1d):.2f}%." if var_1d else "No se dispone de estimación de VaR."
+        )
+        cvar_expl = (
+            f" En escenarios extremos del 5% restante, la pérdida esperada (CVaR) promedia {abs(cvar_1d):.2f}%."
+            if cvar_1d
+            else ""
+        )
+        risk_paragraph = f"{var_expl}{cvar_expl} El régimen actual se cataloga como '{regime}'."
 
     for k_idx, (k_title, k_val) in enumerate(risk_kpis):
         kx = 15 + k_idx * 45
@@ -633,12 +761,7 @@ def generate_investment_memo(
     pdf.set_xy(15, 98)
     pdf.set_font("Helvetica", size=7.0)
     pdf.set_text_color(71, 85, 105)
-    var_expl = (
-        f"El Value at Risk al 95% indica que en el 95% de las jornadas la pérdida diaria estimada no excederá "
-        f"{abs(var_1d):.2f}%." if var_1d else "No se dispone de estimación de VaR."
-    )
-    cvar_expl = f" En escenarios extremos del 5% restante, la pérdida esperada (CVaR) promedia {abs(cvar_1d):.2f}%." if cvar_1d else ""
-    pdf.multi_cell(180, 3.5, _clean_text(f"{var_expl}{cvar_expl} El régimen actual se cataloga como '{regime}'."))
+    pdf.multi_cell(180, 3.5, _clean_text(risk_paragraph))
 
     # -------------------------------------------------------------------------
     # SECCIÓN 3: Pronóstico Cuantitativo a 30 Ruedas
@@ -650,7 +773,12 @@ def generate_investment_memo(
     pdf.set_xy(15, 122)
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(180, 4, "PROYECCIÓN CUANTITATIVA A 30 DÍAS HÁBILES", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    forecast_sec_title = (
+        "30-TRADING-DAY QUANTITATIVE FORECAST"
+        if lang == "en"
+        else "PROYECCIÓN CUANTITATIVA A 30 DÍAS HÁBILES"
+    )
+    pdf.cell(180, 4, forecast_sec_title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     f_model = forecast.get("model", "Auto-ARIMA")
     f_proj = forecast.get("projected_price") or forecast.get("mean_forecast")
@@ -658,12 +786,28 @@ def generate_investment_memo(
     f_p10 = forecast.get("lower_bound") or forecast.get("p10")
     f_p90 = forecast.get("upper_bound") or forecast.get("p90")
 
-    forecast_kpis = [
-        ("Modelo Aplicado", str(f_model)[:18]),
-        ("Precio Central Proyectado", _fmt_price(f_proj, currency)),
-        ("Retorno Esperado (%)", f"{f_change:+.2f}%" if f_change is not None else "-"),
-        ("Rango Probabilístico (P10 - P90)", f"{_fmt_price(f_p10, currency)} - {_fmt_price(f_p90, currency)}" if f_p10 and f_p90 else "-"),
-    ]
+    if lang == "en":
+        forecast_kpis = [
+            ("Fitted Model", str(f_model)[:18]),
+            ("Central Projected Price", _fmt_price(f_proj, currency)),
+            ("Expected Return (%)", f"{f_change:+.2f}%" if f_change is not None else "-"),
+            ("Probability Range (P10 - P90)", f"{_fmt_price(f_p10, currency)} - {_fmt_price(f_p90, currency)}" if f_p10 and f_p90 else "-"),
+        ]
+        forecast_paragraph = (
+            "The projection models stochastic time-series dynamics. Realized market prices may deviate "
+            "due to unexpected macroeconomic releases, earnings surprises, or regulatory developments."
+        )
+    else:
+        forecast_kpis = [
+            ("Modelo Aplicado", str(f_model)[:18]),
+            ("Precio Central Proyectado", _fmt_price(f_proj, currency)),
+            ("Retorno Esperado (%)", f"{f_change:+.2f}%" if f_change is not None else "-"),
+            ("Rango Probabilístico (P10 - P90)", f"{_fmt_price(f_p10, currency)} - {_fmt_price(f_p90, currency)}" if f_p10 and f_p90 else "-"),
+        ]
+        forecast_paragraph = (
+            "La proyección modela la estructura temporal estocástica mediante series de tiempo. "
+            "Las cotizaciones reales pueden desviarse debido a noticias macroeconómicas imprevistas o cambios regulatorios."
+        )
 
     for f_idx, (f_title, f_val) in enumerate(forecast_kpis):
         fx = 15 + f_idx * 45
@@ -679,13 +823,7 @@ def generate_investment_memo(
     pdf.set_xy(15, 140)
     pdf.set_font("Helvetica", size=7.0)
     pdf.set_text_color(71, 85, 105)
-    pdf.multi_cell(
-        180, 3.5,
-        _clean_text(
-            "La proyección modela la estructura temporal estocástica mediante series de tiempo. "
-            "Las cotizaciones reales pueden desviarse debido a noticias macroeconómicas imprevistas o cambios regulatorios."
-        )
-    )
+    pdf.multi_cell(180, 3.5, _clean_text(forecast_paragraph))
 
     # -------------------------------------------------------------------------
     # SECCIÓN 4: Eventos Corporativos & Sentimiento
@@ -697,28 +835,45 @@ def generate_investment_memo(
     pdf.set_xy(15, 164)
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(180, 4, "CALENDARIO CORPORATIVO & SENTIMIENTO DE NOTICIAS", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    events_sec_title = (
+        "CORPORATE CALENDAR & NEWS SENTIMENT"
+        if lang == "en"
+        else "CALENDARIO CORPORATIVO & SENTIMIENTO DE NOTICIAS"
+    )
+    pdf.cell(180, 4, events_sec_title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     up_events = events.get("upcoming_events", {}) if events else {}
     sent_summary = events.get("sentiment_summary", {}) if events else {}
 
-    earn_date = up_events.get("earnings_date") or "No programado"
+    unscheduled_str = "Unscheduled" if lang == "en" else "No programado"
+    earn_date = up_events.get("earnings_date") or unscheduled_str
     ex_div_date = up_events.get("ex_dividend_date") or "-"
     sent_label = sent_summary.get("overall_label", "Neutral")
     pos_cnt = sent_summary.get("positive_count", 0)
     neg_cnt = sent_summary.get("negative_count", 0)
 
+    if lang == "en":
+        l1_txt = f"Next Earnings: {earn_date}"
+        l2_txt = f"Ex-Dividend Date: {ex_div_date}"
+        l3_txt = f"Sentiment: {sent_label} ({pos_cnt} pos / {neg_cnt} neg)"
+        events_footer = "Continuous surveillance of corporate events and news headlines indexed by Yahoo Finance."
+    else:
+        l1_txt = f"Próximo Balance: {earn_date}"
+        l2_txt = f"Fecha Ex-Dividendo: {ex_div_date}"
+        l3_txt = f"Sentimiento: {sent_label} ({pos_cnt} pos / {neg_cnt} neg)"
+        events_footer = "Monitoreo continuo de eventos corporativos y noticias indexadas por Yahoo Finance."
+
     pdf.set_xy(15, 170)
     pdf.set_font("Helvetica", size=7.2)
     pdf.set_text_color(71, 85, 105)
-    pdf.cell(60, 4, _clean_text(f"Próximo Balance: {earn_date}"))
-    pdf.cell(60, 4, _clean_text(f"Fecha Ex-Dividendo: {ex_div_date}"))
-    pdf.cell(60, 4, _clean_text(f"Sentimiento: {sent_label} ({pos_cnt} pos / {neg_cnt} neg)"))
+    pdf.cell(60, 4, _clean_text(l1_txt))
+    pdf.cell(60, 4, _clean_text(l2_txt))
+    pdf.cell(60, 4, _clean_text(l3_txt))
 
     pdf.set_xy(15, 177)
     pdf.set_font("Helvetica", size=6.8)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(180, 4, _clean_text("Monitoreo continuo de eventos corporativos y noticias indexadas por Yahoo Finance."))
+    pdf.cell(180, 4, _clean_text(events_footer))
 
     # -------------------------------------------------------------------------
     # SECCIÓN 5: Descargo de Responsabilidad Legal & Institucional
@@ -731,17 +886,30 @@ def generate_investment_memo(
     pdf.set_xy(15, 192)
     pdf.set_font("Helvetica", "B", 7)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(180, 3.5, "AVISO LEGAL Y DESCARGO DE RESPONSABILIDAD INSTITUCIONAL", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    disclaimer_header = (
+        "LEGAL NOTICE & INSTITUTIONAL DISCLAIMER"
+        if lang == "en"
+        else "AVISO LEGAL Y DESCARGO DE RESPONSABILIDAD INSTITUCIONAL"
+    )
+    pdf.cell(180, 3.5, disclaimer_header, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.set_xy(15, 196)
     pdf.set_font("Helvetica", size=6.2)
     pdf.set_text_color(100, 116, 139)
-    disclaimer = (
-        "El presente informe ha sido elaborado de forma automatizada por StockWise con propósitos exclusivamente educativos, "
-        "cuantitativos y de análisis de mercado. En ningún caso constituye asesoramiento financiero, solicitud, oferta "
-        "o recomendación para comprar, vender o mantener posiciones en activos financieros. Los rendimientos pasados y modelos "
-        "predictivos no garantizan resultados futuros. Cada inversionista es responsable de sus propias decisiones."
-    )
+    if lang == "en":
+        disclaimer = (
+            "This memorandum was generated automatically by StockWise strictly for educational, quantitative, "
+            "and market research purposes. Under no circumstances does it constitute financial advice, investment solicitation, "
+            "or a recommendation to buy, sell, or hold financial assets. Past performance and statistical predictive models "
+            "do not guarantee future returns. Each investor assumes sole responsibility for their investment decisions."
+        )
+    else:
+        disclaimer = (
+            "El presente informe ha sido elaborado de forma automatizada por StockWise con propósitos exclusivamente educativos, "
+            "cuantitativos y de análisis de mercado. En ningún caso constituye asesoramiento financiero, solicitud, oferta "
+            "o recomendación para comprar, vender o mantener posiciones en activos financieros. Los rendimientos pasados y modelos "
+            "predictivos no garantizan resultados futuros. Cada inversionista es responsable de sus propias decisiones."
+        )
     pdf.multi_cell(180, 3.0, _clean_text(disclaimer))
 
     return bytes(pdf.output())
@@ -750,6 +918,7 @@ def generate_investment_memo(
 def save_investment_memo_pdf(
     symbol: str,
     output_dir: Path | str | None = None,
+    lang: str = "es",
     **kwargs: Any,
 ) -> Path:
     """
@@ -762,9 +931,10 @@ def save_investment_memo_pdf(
 
     safe_sym = re.sub(r"[^A-Za-z0-9_.-]", "_", clean_sym)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"StockWise_Memo_{safe_sym}_{stamp}.pdf"
+    lang_tag = f"_{lang.lower()}" if lang else ""
+    filename = f"StockWise_Memo_{safe_sym}{lang_tag}_{stamp}.pdf"
     file_path = out_dir / filename
 
-    pdf_bytes = generate_investment_memo(symbol=clean_sym, **kwargs)
+    pdf_bytes = generate_investment_memo(symbol=clean_sym, lang=lang, **kwargs)
     file_path.write_bytes(pdf_bytes)
     return file_path
