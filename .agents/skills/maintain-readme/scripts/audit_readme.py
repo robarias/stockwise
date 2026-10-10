@@ -66,6 +66,24 @@ def extract_streamlit_tabs(app_py_path: Path) -> list[str]:
     return tabs
 
 
+def extract_streamlit_icon(app_py_path: Path) -> str | None:
+    """Extrae el icono (emoji) configurado en st.set_page_config."""
+    if not app_py_path.exists():
+        return None
+    try:
+        tree = ast.parse(app_py_path.read_text(encoding="utf-8"), filename=str(app_py_path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Attribute) and func.attr == "set_page_config":
+                    for kw in node.keywords:
+                        if kw.arg == "page_icon" and isinstance(kw.value, ast.Constant):
+                            return str(kw.value.value)
+    except Exception:
+        pass
+    return None
+
+
 def extract_github_workflows(workflows_dir: Path) -> list[str]:
     """Lista los archivos de workflow en .github/workflows/."""
     if not workflows_dir.exists():
@@ -143,6 +161,18 @@ def audit_readme(root_path: Path) -> tuple[list[str], list[str], list[str]]:
             )
         else:
             successes.append(f"Pestañas web sincronizadas: Los {len(actual_tabs)} módulos de la UI están reflejados en el README.")
+
+    # ---------------------------------------------------------
+    # 2.1. Auditoría de Icono / Emoji Principal
+    # ---------------------------------------------------------
+    app_icon = extract_streamlit_icon(app_path)
+    if app_icon:
+        if app_icon in readme_text:
+            successes.append(f"Emoji e icono principal sincronizado: '{app_icon}' coincide entre app.py y README.md.")
+        else:
+            errors.append(
+                f"El icono configurado en app.py ('{app_icon}') no coincide con el emoji del README.md."
+            )
 
     # ---------------------------------------------------------
     # 3. Auditoría de Estructura del Repositorio

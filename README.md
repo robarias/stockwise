@@ -1,6 +1,6 @@
 ---
 title: StockWise
-emoji: 📈
+emoji: 🦉
 colorFrom: blue
 colorTo: indigo
 sdk: streamlit
@@ -10,7 +10,7 @@ pinned: false
 license: mit
 ---
 
-# 📈 StockWise: Análisis Bursátil y Financiero con Inteligencia Artificial
+# 🦉 StockWise: Análisis Bursátil y Financiero con Inteligencia Artificial
 
 > Servidor y plataforma analítica basada en el estándar **Model Context Protocol (MCP)** y **Streamlit** para el análisis cuantitativo, técnico, fundamental y predictivo de mercados financieros (EE. UU., globales y Bolsa de Valores de Colombia - BVC).
 
