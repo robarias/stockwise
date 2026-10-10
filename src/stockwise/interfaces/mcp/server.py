@@ -31,11 +31,14 @@ except ImportError:
 
 from stockwise.analytics.forecasting import forecast_close
 from stockwise.analytics.indicators import calculate_technical_indicators
+from stockwise.analytics.options import evaluate_contract
 from stockwise.analytics.risk import calculate_risk_metrics
 from stockwise.domain.catalogs.colombia import list_colombian_stocks
 from stockwise.domain.markets import COLOMBIA_CURRENCY, is_colombian_ticker, resolve_ticker
 from stockwise.interfaces.mcp.chart_files import save_figure
 from stockwise.services.events import fetch_stock_events_and_news
+from stockwise.services.options import get_options_surface_data
+from stockwise.services.reports.investment_memo import save_investment_memo_pdf
 from stockwise.viz.forecast import build_forecast_figure
 
 
@@ -569,6 +572,104 @@ def get_stock_events_and_news(ticker: str, limit: int = 8) -> dict[str, Any]:
         limit: Número máximo de noticias a recuperar (predeterminado 8).
     """
     return fetch_stock_events_and_news(ticker, limit=limit)
+
+
+@mcp.tool()
+def generate_investment_memo_pdf(ticker: str, output_dir: str | None = None) -> dict[str, Any]:
+    """
+    Genera un Memorando Ejecutivo de Inversión institucional en formato PDF (2 páginas).
+    Incluye resumen de tesis, scorecard de múltiplos y rentabilidad, gráfico técnico de alta resolución,
+    diagnóstico de riesgo heterocedástico GARCH/VaR, pronóstico cuantitativo a 30 días y eventos corporativos.
+
+    Args:
+        ticker: Símbolo bursátil (ej: 'AAPL', 'MSFT', 'ECOPETROL', 'ISA.CL').
+        output_dir: Directorio opcional donde guardar el PDF. Si es None, usa 'charts/reports/'.
+    """
+    try:
+        pdf_path = save_investment_memo_pdf(symbol=ticker, output_dir=output_dir)
+        return {
+            "status": "success",
+            "ticker": resolve_ticker(ticker),
+            "file_path": str(pdf_path),
+            "file_size_bytes": pdf_path.stat().st_size,
+            "filename": pdf_path.name,
+            "message": f"Memorando ejecutivo en PDF generado exitosamente en: {pdf_path}",
+        }
+    except Exception as exc:
+        return {
+            "status": "error",
+            "ticker": ticker,
+            "error": str(exc),
+        }
+
+
+@mcp.tool()
+def calculate_black_scholes(
+    spot: float,
+    strike: float,
+    dte_days: float,
+    volatility: float,
+    risk_free_rate: float = 0.045,
+    dividend_yield: float = 0.0,
+    option_type: str = "call",
+) -> dict[str, Any]:
+    """
+    Calcula el precio teórico de una opción europea y sus griegas analíticas usando Black-Scholes-Merton.
+
+    Args:
+        spot: Precio actual del activo subyacente.
+        strike: Precio de ejercicio de la opción.
+        dte_days: Días al vencimiento (DTE).
+        volatility: Volatilidad anualizada estimada (ej: 0.25 para 25%).
+        risk_free_rate: Tasa libre de riesgo anualizada (por defecto 0.045 = 4.5%).
+        dividend_yield: Rendimiento continuo por dividendos (por defecto 0.0).
+        option_type: Tipo de opción ('call' o 'put').
+    """
+    try:
+        res = evaluate_contract(
+            spot=spot,
+            strike=strike,
+            dte_days=dte_days,
+            volatility=volatility,
+            risk_free_rate=risk_free_rate,
+            dividend_yield=dividend_yield,
+            option_type=option_type,
+        )
+        return res.to_dict()
+    except Exception as exc:
+        return {"error": f"Error evaluando Black-Scholes: {exc}"}
+
+
+@mcp.tool()
+def get_options_surface(
+    ticker: str,
+    base_volatility: float = 0.25,
+) -> dict[str, Any]:
+    """
+    Obtiene la superficie 3D de volatilidad implícita (IV Surface) para un activo.
+    Si el activo cotiza en EE. UU., utiliza cotizaciones reales de Yahoo Finance interpoladas;
+    si es colombiano o sin opciones activas, recurre a un modelo paramétrico de sonrisa y estructura temporal.
+
+    Args:
+        ticker: Símbolo bursátil (ej: 'AAPL', 'MSFT', 'SPY', 'ECOPETROL.CL').
+        base_volatility: Volatilidad base de referencia si no hay cadena líquida en vivo (por defecto 0.25).
+    """
+    try:
+        surf = get_options_surface_data(ticker, base_volatility=base_volatility)
+        return {
+            "symbol": surf.symbol,
+            "spot_price": surf.spot_price,
+            "is_synthetic": surf.is_synthetic,
+            "min_iv_pct": surf.min_iv_pct,
+            "max_iv_pct": surf.max_iv_pct,
+            "strikes_evaluated": len(surf.strikes),
+            "strike_range": [surf.strikes[0], surf.strikes[-1]] if surf.strikes else [],
+            "dte_range_days": [surf.dtes[0], surf.dtes[-1]] if surf.dtes else [],
+            "points_count": surf.raw_points_count,
+            "data_source": surf.metadata.get("data_source", ""),
+        }
+    except Exception as exc:
+        return {"error": f"Error calculando superficie de opciones: {exc}"}
 
 
 def main() -> None:

@@ -521,6 +521,15 @@ SECTION_GUIDES: dict[str, dict[str, Any]] = {
             ("3. Noticias con Volumen Anormal (🔥)", "Titulares que disparan el volumen habitual señalan reacomodos profundos de carteras institucionales.")
         ],
     },
+    "options": {
+        "title": "💡 Guía para Principiantes: ¿Cómo entender las Opciones Financieras y la Volatilidad Implícita?",
+        "intro": "Las opciones son derivados que otorgan el derecho (no la obligación) de comprar (Call) o vender (Put) un activo a un precio fijado.",
+        "tips": [
+            ("1. Superficie de Volatilidad (IV Surface)", "Muestra cómo varía la volatilidad implícita según el strike y el tiempo al vencimiento. La 'sonrisa de volatilidad' refleja que el mercado suele pagar primas más altas por protección ante caídas pronunciadas."),
+            ("2. Las Griegas (Delta, Gamma, Vega, Theta)", "Delta mide la probabilidad aproximada de quedar en ganancias (ITM). Theta mide el desgaste diario por el paso del tiempo. Vega mide la sensibilidad ante expansiones o contracciones de volatilidad."),
+            ("3. Primas y Mapas de Calor", "Permiten explorar visualmente qué combinaciones de strike y precio spot ofrecen mejor balance antes de estructurar una estrategia."),
+        ],
+    },
     "comparison": {
         "title": "💡 Guía para Principiantes: ¿Cómo comparar activos entre sí?",
         "intro": "Comparar múltiples acciones permite descubrir líderes relativos y optimizar la diversificación.",

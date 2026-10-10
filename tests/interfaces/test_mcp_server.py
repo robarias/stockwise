@@ -11,7 +11,8 @@ EXPECTED_TOOLS = {
     "get_stock_quote", "get_international_stock_price", "get_technical_analysis", "get_fundamental_analysis",
     "get_risk_and_performance", "compare_stocks", "get_historical_candles", "forecast_stock_prices",
     "list_colombian_stocks_catalog", "get_colombian_stock_analysis", "get_colombian_trm", "convert_usd_to_cop",
-    "get_stock_events_and_news",
+    "get_stock_events_and_news", "generate_investment_memo_pdf",
+    "calculate_black_scholes", "get_options_surface",
 }
 
 
@@ -56,6 +57,13 @@ def test_root_server_shim_compatibility():
 
     assert root_server.mcp is server.mcp
     assert callable(root_server.main)
+
+
+def test_calculate_black_scholes_tool():
+    res = server.calculate_black_scholes(spot=100.0, strike=100.0, dte_days=30.0, volatility=0.20)
+    assert "price" in res and res["price"] > 0
+    assert "greeks" in res and "delta" in res["greeks"]
+    assert "moneyness_status" in res
 
 
 

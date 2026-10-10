@@ -26,6 +26,10 @@ except Exception:
 
 from stockwise.analytics.forecasting import MODELS, forecast_close
 from stockwise.analytics.indicators import calculate_technical_indicators
+from stockwise.analytics.options import (
+    evaluate_contract,
+    generate_parametric_iv_surface,
+)
 from stockwise.analytics.risk import calculate_risk_metrics
 from stockwise.data.education import (
     get_chart_guides,
@@ -45,9 +49,20 @@ from stockwise.domain.education import (
     interpret_volatility,
 )
 from stockwise.domain.markets import is_colombian_ticker, resolve_ticker
+from stockwise.domain.options import OptionType
 from stockwise.interfaces.mcp import server  # TODO(fase 2): reemplazar por stockwise.services
+from stockwise.services.options import (
+    get_options_surface_data,
+    get_pricing_heatmap_data,
+)
+from stockwise.services.reports.investment_memo import generate_investment_memo
 from stockwise.viz.comparison import build_comparison_figures
 from stockwise.viz.forecast import build_forecast_figure
+from stockwise.viz.options import (
+    build_black_scholes_heatmap_figure,
+    build_iv_surface_3d_figure,
+    build_option_payoff_figure,
+)
 from stockwise.viz.risk import build_conditional_volatility_figure
 from stockwise.viz.technical import build_technical_figure
 
@@ -124,6 +139,35 @@ def load_closes(symbols: tuple, period: str) -> pd.DataFrame:
             s.index = s.index.tz_localize(None).normalize() if s.index.tz is not None else s.index.normalize()
             series[sym] = s[~s.index.duplicated(keep="last")]
     return pd.DataFrame(series)
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_investment_memo_pdf(symbol: str, period: str) -> bytes:
+    h = load_history(symbol, period)
+    q = load_quote(symbol)
+    f = load_fundamentals(symbol)
+    ev = load_events_and_news(symbol)
+    r = calculate_risk_metrics(h) if len(h) >= 10 else {}
+    ind = calculate_technical_indicators(h) if len(h) >= 15 else {}
+    return generate_investment_memo(
+        symbol=symbol,
+        history=h,
+        quote=q,
+        fundamentals=f,
+        risk_metrics=r,
+        indicators=ind,
+        events=ev,
+    )
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_options_surface(sym: str, base_v: float | None = None):
+    return get_options_surface_data(sym, base_volatility=base_v)
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_heatmap_matrix(sym: str, spot: float, dte: float, vol: float, r: float):
+    return get_pricing_heatmap_data(sym, spot_price=spot, dte_days=dte, volatility=vol, risk_free_rate=r)
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +398,20 @@ if st.sidebar.button("🔄 Actualizar datos"):
     st.rerun()
 
 st.sidebar.divider()
+st.sidebar.markdown("##### 📄 Exportar Reporte")
+with st.sidebar.expander("Memorando Ejecutivo (PDF)", expanded=False):
+    st.caption("Reporte de 2 páginas con resumen, métricas, gráfico técnico, riesgo GARCH y pronóstico.")
+    if symbol:
+        _side_pdf_bytes = load_investment_memo_pdf(symbol, period)
+        st.download_button(
+            label="⬇️ Descargar PDF",
+            data=_side_pdf_bytes,
+            file_name=f"StockWise_Memo_{symbol}_{period}.pdf",
+            mime="application/pdf",
+            key="btn_pdf_sidebar",
+            use_container_width=True,
+        )
+
 learning_mode = st.sidebar.toggle(
     "Modo Aprendizaje 🎓",
     value=True,
@@ -377,7 +435,6 @@ with st.sidebar.expander("Ver descargo completo", expanded=False):
 # ---------------------------------------------------------------------------
 # Datos base
 # ---------------------------------------------------------------------------
-st.title(f"{symbol}")
 if not symbol:
     st.info("Selecciona o escribe un ticker en la barra lateral.")
     st.stop()
@@ -396,14 +453,30 @@ if hist.empty:
 
 quote = load_quote(symbol)
 currency = quote.get("currency") or ("COP" if is_colombian_ticker(symbol) else "USD")
-if quote.get("name"):
-    st.caption(f"{quote['name']} · moneda: {currency}")
+
+col_title, col_pdf = st.columns([3, 1], vertical_alignment="bottom")
+with col_title:
+    st.title(f"{symbol}")
+    if quote.get("name"):
+        st.caption(f"{quote['name']} · moneda: {currency}")
+
+with col_pdf:
+    pdf_bytes = load_investment_memo_pdf(symbol, period)
+    st.download_button(
+        label="📥 Descargar Memorando PDF",
+        data=pdf_bytes,
+        file_name=f"StockWise_Memo_{symbol}_{period}.pdf",
+        mime="application/pdf",
+        help="Descarga un memorando institucional en PDF (2 páginas) con resumen ejecutivo, métricas clave, gráfico técnico, riesgo GARCH y pronóstico.",
+        use_container_width=True,
+    )
 
 tabs = st.tabs([
     "📋 Resumen & Fundamental",
     "📊 Técnico",
     "⚖️ Riesgo",
     "🔮 Pronóstico",
+    "⚡ Opciones & Volatilidad",
     "📰 Eventos y Noticias",
     "🆚 Comparar",
     "🎓 Academia & Glosario",
@@ -820,9 +893,143 @@ with tabs[3]:
         render_guide("forecast")
 
 # ---------------------------------------------------------------------------
-# 5. Eventos y Noticias
+# 5. Opciones & Volatilidad
 # ---------------------------------------------------------------------------
 with tabs[4]:
+    st.markdown("### ⚡ Opciones Financieras & Superficies de Volatilidad")
+    st.caption(
+        "Modelado analítico de derivados financieros mediante Black-Scholes-Merton (1973), "
+        "calibración de la estructura temporal de volatilidad y análisis tridimensional de la sonrisa de volatilidad (IV Smile)."
+    )
+
+    spot_val = float(quote.get("price") or (hist["Close"].iloc[-1] if not hist.empty else 100.0))
+
+    sub_tabs = st.tabs([
+        "🌐 Superficie 3D de Volatilidad (IV)",
+        "🗺️ Mapas de Calor Black-Scholes",
+        "🧮 Calculadora de Griegas & Payoff",
+    ])
+
+    # 1. Superficie 3D
+    with sub_tabs[0]:
+        col_s1, col_s2 = st.columns([3, 1])
+        with col_s2:
+            force_synthetic = st.checkbox(
+                "Simular superficie paramétrica",
+                value=is_colombian_ticker(symbol),
+                help="Genera la superficie con modelo paramétrico de sonrisa de volatilidad (ideal para acciones colombianas o pruebas hipotéticas).",
+            )
+            sim_vol = st.slider(
+                "Volatilidad base de referencia (%)",
+                min_value=10.0,
+                max_value=120.0,
+                value=30.0,
+                step=1.0,
+            ) / 100.0
+
+        with col_s1:
+            with st.spinner("Construyendo superficie 3D de volatilidad implícita…"):
+                if force_synthetic:
+                    surf_data = generate_parametric_iv_surface(spot_price=spot_val, base_vol=sim_vol, symbol=symbol)
+                else:
+                    surf_data = load_options_surface(symbol, base_v=sim_vol)
+
+            src_label = "⚪ Modelo Paramétrico (Sonrisa y Estructura Temporal)" if surf_data.is_synthetic else "🟢 Cotizaciones Reales de Mercado (Yahoo Finance)"
+            st.caption(f"Fuente de datos: **{src_label}** · Strikes evaluados: **{len(surf_data.strikes)}** · Puntos: **{surf_data.raw_points_count}**")
+
+            kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+            kpi1.metric("Spot Subyacente", fmt_price(surf_data.spot_price, currency))
+            kpi2.metric("IV Mínima", f"{surf_data.min_iv_pct:.1f}%")
+            kpi3.metric("IV Máxima", f"{surf_data.max_iv_pct:.1f}%")
+            kpi4.metric("DTE Evaluado", f"{surf_data.dtes[0]:.0f} a {surf_data.dtes[-1]:.0f} d" if surf_data.dtes else "—")
+
+            fig_surface = build_iv_surface_3d_figure(surf_data)
+            st.plotly_chart(fig_surface, use_container_width=True)
+
+    # 2. Mapas de Calor
+    with sub_tabs[1]:
+        c_h1, c_h2, c_h3, c_h4 = st.columns(4)
+        with c_h1:
+            hm_view = st.selectbox(
+                "Métrica a Visualizar",
+                [
+                    ("call_prices", "Primas Teóricas CALL ($)"),
+                    ("put_prices", "Primas Teóricas PUT ($)"),
+                    ("delta_call", "Delta CALL Δ (Probabilidad ITM)"),
+                    ("call_vol", "CALL vs Expansión de Volatilidad"),
+                    ("put_vol", "PUT vs Expansión de Volatilidad"),
+                ],
+                format_func=lambda x: x[1],
+            )[0]
+        with c_h2:
+            hm_dte = st.slider("Días al Vencimiento (DTE)", min_value=7, max_value=180, value=30, step=1)
+        with c_h3:
+            hm_vol = st.slider("Volatilidad Anualizada (%)", min_value=10.0, max_value=120.0, value=30.0, step=2.0) / 100.0
+        with c_h4:
+            hm_rf = st.slider("Tasa Libre de Riesgo (%)", min_value=0.0, max_value=15.0, value=4.5, step=0.25) / 100.0
+
+        hm_data = load_heatmap_matrix(symbol, spot_val, float(hm_dte), float(hm_vol), float(hm_rf))
+        fig_heat = build_black_scholes_heatmap_figure(hm_data, view_type=hm_view)
+        st.plotly_chart(fig_heat, use_container_width=True)
+
+    # 3. Calculadora de Griegas & Payoff
+    with sub_tabs[2]:
+        cc1, cc2, cc3, cc4 = st.columns(4)
+        with cc1:
+            calc_type = st.radio("Tipo de Contrato", ["CALL", "PUT"], horizontal=True)
+            calc_pos = st.radio("Posición", ["Compra (Long)", "Venta (Short)"], horizontal=True)
+        with cc2:
+            calc_strike = st.number_input(
+                f"Strike / Precio Ejercicio ({currency})",
+                value=float(round(spot_val, 2)),
+                step=1.0 if currency == "USD" else 50.0,
+            )
+        with cc3:
+            calc_dte = st.number_input("Días al Vencimiento (DTE)", min_value=1, max_value=730, value=30)
+        with cc4:
+            calc_vol = st.number_input("Volatilidad Implícita / Estimada (%)", min_value=5.0, max_value=250.0, value=30.0, step=1.0) / 100.0
+
+        contract_res = evaluate_contract(
+            spot=spot_val,
+            strike=calc_strike,
+            dte_days=float(calc_dte),
+            volatility=calc_vol,
+            risk_free_rate=0.045,
+            option_type=OptionType(calc_type.lower()),
+        )
+
+        st.divider()
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric(f"Prima Teórica {calc_type}", fmt_price(contract_res.price, currency))
+        m2.metric("Valor Intrínseco", fmt_price(contract_res.intrinsic_value, currency))
+        m3.metric("Valor Temporal", fmt_price(contract_res.time_value, currency))
+        m4.metric("Estado Moneyness", contract_res.moneyness_status)
+
+        st.caption("⚡ **Griegas Analíticas de Primer y Segundo Orden (Sensibilidad):**")
+        g1, g2, g3, g4, g5 = st.columns(5)
+        g1.metric("Delta (Δ)", f"{contract_res.greeks.delta:+.4f}", help="Cambio de la prima ante un movimiento de $1 en el activo.")
+        g2.metric("Gamma (Γ)", f"{contract_res.greeks.gamma:.5f}", help="Curvatura: cambio del Delta ante un movimiento de $1.")
+        g3.metric("Theta Diario (Θ)", fmt_price(contract_res.greeks.theta_daily, currency), help="Erosión temporal: pérdida diaria de valor por el paso de las ruedas.")
+        g4.metric("Vega por 1% (ν)", fmt_price(contract_res.greeks.vega_1pct, currency), help="Sensibilidad ante una subida de 1 punto porcentual en volatilidad.")
+        g5.metric("Rho por 1% (ρ)", fmt_price(contract_res.greeks.rho_1pct, currency), help="Sensibilidad ante un incremento del 1% en la tasa libre de riesgo.")
+
+        pos_str = "long" if "Compra" in calc_pos else "short"
+        fig_pay = build_option_payoff_figure(
+            spot=spot_val,
+            strike=calc_strike,
+            premium=contract_res.price,
+            option_type=calc_type.lower(),
+            position=pos_str,
+        )
+        st.plotly_chart(fig_pay, use_container_width=True)
+
+    if learning_mode:
+        render_guide("options")
+
+# ---------------------------------------------------------------------------
+# 6. Eventos y Noticias
+# ---------------------------------------------------------------------------
+with tabs[5]:
     with st.spinner("Consultando eventos corporativos y noticias recientes…"):
         events_info = load_events_and_news(symbol)
 
@@ -912,9 +1119,9 @@ with tabs[4]:
         render_guide("events_and_news")
 
 # ---------------------------------------------------------------------------
-# 6. Comparar
+# 7. Comparar
 # ---------------------------------------------------------------------------
-with tabs[5]:
+with tabs[6]:
     colombian = [o["symbol"] for o in list_colombian_stocks()]
     universe = sorted(set(colombian + POPULAR_US + [symbol]))
     default = [symbol] + [t for t in (["ISA.CL", "ECOPETROL.CL"] if is_colombian_ticker(symbol) else ["MSFT", "SPY"])
@@ -957,9 +1164,9 @@ with tabs[5]:
         render_guide("comparison")
 
 # ---------------------------------------------------------------------------
-# 7. Academia & Glosario
+# 8. Academia & Glosario
 # ---------------------------------------------------------------------------
-with tabs[6]:
+with tabs[7]:
     render_education_tab()
 
 # ---------------------------------------------------------------------------

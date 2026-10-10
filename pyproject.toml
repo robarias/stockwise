@@ -10,6 +10,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "arch>=8.0.0",
+    "fpdf2>=2.8.0",
+    "matplotlib>=3.8.0",
     "numpy>=1.26",
     "pandas>=2.0",
     "plotly>=5.18",
