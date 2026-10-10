@@ -64,6 +64,10 @@ license: mit
   - [5.2. Plantilla de Configuración Estándar (`mcpServers`)](#52-plantilla-de-configuración-estándar-mcpservers)
   - [5.3. Guía de Adaptación a Cualquier Entorno](#53-guía-de-adaptación-a-cualquier-entorno)
 - [6. Calidad de Código, Pruebas y Validación](#6-calidad-de-código-pruebas-y-validación)
+  - [6.1. Batería de Pruebas y Linters](#61-batería-de-pruebas-y-linters)
+  - [6.2. Auditoría y Sincronización de Dependencias (Skill: `validate-dependencies`)](#62-auditoría-y-sincronización-de-dependencias-skill-validate-dependencies)
+  - [6.3. Auditoría y Mantenimiento de Documentación (Skill: `maintain-readme`)](#63-auditoría-y-mantenimiento-de-documentación-skill-maintain-readme)
+  - [6.4. Inspección Rápida de Herramientas MCP](#64-inspección-rápida-de-herramientas-mcp)
 - [7. Estructura del Repositorio](#7-estructura-del-repositorio)
 - [8. Licencia](#8-licencia)
 
@@ -209,6 +213,29 @@ graph TD
 - Calendario de dividendos (fechas ex-dividendo y dividend yields).
 - Clasificación de sentimiento en titulares informativos recientes (Positivo, Negativo, Neutral) y análisis de correlación con volumen de negociación anormal y saltos en precio en la sesión correspondiente.
 
+#### 6. Valuación de Opciones Financieras y Estructura de Volatilidad
+- **Modelo Black-Scholes-Merton:** Valuación analítica cerrada para opciones europeas (Calls y Puts) considerando tasa libre de riesgo y dividend yield continuo.
+- **Griegas Analíticas:** Cálculo de sensibilidades de primer y segundo orden: Delta ($\Delta$), Gamma ($\Gamma$), Vega ($\nu$), Theta ($\Theta$) y Rho ($\rho$).
+- **Simulador de P&L al Vencimiento:** Proyección de pérdidas y ganancias netas considerando primas pagadas/cobradas y puntos de equilibrio (Break-even).
+- **Superficie 3D y Sonrisa de Volatilidad (IV Surface):** Modelado de volatilidad implícita a través de strikes y fechas de vencimiento (DTE), utilizando cotizaciones de mercado en vivo (Yahoo Finance) o modelos paramétricos sintéticos para activos sin derivados líquidos.
+
+#### 7. Optimización Cuantitativa de Portafolios e Inversión
+- **Optimización de Media-Varianza (Markowitz / PyPortfolioOpt):** Modelado de matriz de covarianzas (muestra histórica, contracción Ledoit-Wolf) y retornos esperados (media histórica, CAPM).
+- **Objetivos de Optimización:**
+  - Máximo Ratio de Sharpe (cartera de tangencia óptima).
+  - Mínima Volatilidad (cartera de varianza mínima global).
+  - Paridad de Riesgo (Risk Parity / Equal Risk Contribution) con igual asignación presupuestaria de riesgo por activo.
+- **Frontera Eficiente y Asignación de Capital:** Cálculo de la curva de compensación riesgo-retorno y ponderación de pesos discretos con montos exactos a invertir en moneda local (COP) o divisas (USD).
+
+#### 8. Módulo Educativo y Academia Financiera
+- **Catálogo Pedagógico Integrado:** Biblioteca de conceptos estructurada en niveles (Básico, Intermedio, Avanzado) abarcando Mercados, Análisis Técnico, Análisis Fundamental, Riesgo, Opciones Financieras y Portafolios.
+- **Quizzes Interactivos:** Evaluaciones de opción múltiple con retroalimentación explicativa inmediata.
+- **Auditor Pedagógico:** Servicio automatizado de validación y control de calidad de recursos formativos, ejecutado en CI vía GitHub Actions.
+
+#### 9. Generación de Reportes Ejecutivos en PDF (Investment Memo)
+- **Memorando Institucional de Inversión:** Exportación automatizada de reportes de 2 páginas con diseño ejecutivo maquetado con `fpdf2` y gráficos vectoriales embebidos (`matplotlib`).
+- **Secciones del Reporte:** Tesis del activo, scorecard de múltiplos de valuación, gráfico técnico de alta resolución, diagnóstico de riesgo GARCH/VaR, pronóstico cuantitativo a 30 días y eventos corporativos.
+
 [⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
 
 ---
@@ -216,7 +243,7 @@ graph TD
 ### 2.3. Catálogo Completo de Herramientas MCP
 <a id="23-catálogo-completo-de-herramientas-mcp"></a>
 
-El servidor registra las siguientes herramientas públicas accesibles por cualquier cliente compatible:
+El servidor registra las siguientes 17 herramientas públicas accesibles por cualquier cliente compatible:
 
 | Herramienta | Parámetros | Tipo Retorno | Descripción Técnica |
 | :--- | :--- | :--- | :--- |
@@ -232,6 +259,10 @@ El servidor registra las siguientes herramientas públicas accesibles por cualqu
 | `get_colombian_trm` | *(sin parámetros)* | `dict` | Consulta de la Tasa Representativa del Mercado (TRM) oficial vigente en Colombia desde la API REST de Datos Abiertos (`datos.gov.co`). |
 | `convert_usd_to_cop` | `usd_amount: float` | `dict` | Conversión aritmética exacta de dólares estadounidenses a pesos colombianos empleando la TRM oficial del día. |
 | `get_stock_events_and_news` | `ticker: str`, `limit: int = 8` | `dict` | Calendario de balances, historial de EPS, dividendos y noticias recientes con clasificación de sentimiento y correlación de impacto en volumen/precio. |
+| `generate_investment_memo_pdf` | `ticker: str`, `output_dir: str \| None = None` | `dict` | Generación de Memorando Ejecutivo de Inversión institucional en formato PDF (2 páginas) con tesis, múltiplos, gráficos de alta resolución, GARCH/VaR y pronósticos. |
+| `calculate_black_scholes` | `spot: float`, `strike: float`, `dte_days: float`, `volatility: float`, `risk_free_rate: float = 0.045`, `dividend_yield: float = 0.0`, `option_type: str = 'call'` | `dict` | Valuación analítica Black-Scholes-Merton para opciones europeas (Calls/Puts) y cálculo de Griegas completas ($\Delta, \Gamma, \nu, \Theta, \rho$). |
+| `get_options_surface` | `ticker: str`, `base_volatility: float = 0.25` | `dict` | Matriz 3D de volatilidad implícita (IV Surface) por strike y vencimiento con interpolación y sonrisa de volatilidad. |
+| `optimize_portfolio` | `tickers: list[str] \| str`, `objective: str = 'max_sharpe'`, `period: str = '2y'`, `risk_free_rate: float = 0.045`, `max_weight: float = 1.0` | `dict` | Optimización cuantitativa de asignación de activos (Markowitz, Máximo Sharpe, Mínima Varianza y Risk Parity) con frontera eficiente. |
 | `get_international_stock_price` | `ticker: str` | `dict` | Alias retrocompatible que redirige la invocación internamente a `get_stock_quote`. |
 
 [⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
@@ -253,8 +284,17 @@ El servidor registra las siguientes herramientas públicas accesibles por cualqu
 
 StockWise provee múltiples puntos de entrada según la necesidad de uso:
 
-1. **Protocolo MCP (Servidor):** Transporte estándar `stdio` para comunicación entre procesos con clientes de IA.
-2. **Aplicación Web (Streamlit):** Panel interactivo con selector de mercados, gráficos interactivos con Plotly, tabs temáticos (Resumen, Técnico, Riesgo, Fundamental, Pronóstico, Noticias, Comparador) y modo responsivo.
+1. **Protocolo MCP (Servidor):** Transporte estándar `stdio` para comunicación entre procesos con clientes de IA (17 herramientas disponibles).
+2. **Aplicación Web (Streamlit):** Panel interactivo integral organizado en 9 pestañas temáticas:
+   - **📋 Resumen & Fundamental:** Cotización en tiempo real, múltiplos contables (P/E, EV/EBITDA, P/B), márgenes de rentabilidad y consenso.
+   - **📊 Técnico:** Gráfico interactivo de velas japonesas, medias móviles (SMA/EMA), RSI, MACD y Bandas de Bollinger.
+   - **⚖️ Riesgo:** Desglose multitemporal, Máximo Drawdown, modelado heterocedástico GARCH y VaR/CVaR condicional.
+   - **🔮 Pronóstico:** Modelos predictivos (ARIMA, ETS, Theta, Ensamble) y simulaciones Monte Carlo de soporte/resistencia.
+   - **⚡ Opciones & Volatilidad:** Calculadora Black-Scholes con griegas, simulador de P&L, smile y superficie 3D de volatilidad implícita.
+   - **💼 Portafolios:** Optimización multiactivo (Máximo Sharpe, Mínima Volatilidad, Paridad de Riesgo) y asignación de capital.
+   - **📰 Eventos y Noticias:** Calendario de balances (EPS), dividendos e impacto de noticias con análisis de sentimiento.
+   - **🆚 Comparar:** Matriz cruzada de rendimiento, riesgo y valuación entre múltiples emisores bursátiles.
+   - **🎓 Academia & Glosario:** Módulo educativo interactivo con conceptos pedagógicos, glosario financiero y quizzes de autoevaluación.
 3. **Consola / CLI:** Puntos de entrada instalables (`stockwise-mcp`, `stockwise-web`) o ejecución modular con `python -m`.
 
 [⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
@@ -392,7 +432,7 @@ Una vez iniciada, abre tu navegador web en `http://localhost:8501` (o la direcci
 #### 1. Preparación del Repositorio
 StockWise ya está preconfigurado de fábrica para Streamlit Cloud:
 - **Punto de entrada (`app.py`)**: Ubicado en la raíz del proyecto, inicializa las rutas y el entorno.
-- **Dependencias (`requirements.txt`)**: Streamlit Cloud detecta e instala este archivo de forma desatendida.
+- **Dependencias (`uv.lock` / `requirements.txt`)**: Streamlit Cloud prioriza `uv.lock` con `uv-sync` si está en el repositorio, o `requirements.txt` en su defecto. Asegúrate de tenerlos sincronizados usando la skill de validación (`python .agents/skills/validate-dependencies/scripts/validate_deps.py`).
 - **Control de versiones**: Asegúrate de haber subido tu código a tu cuenta de GitHub (en un repositorio público o privado).
 
 #### 2. Paso a Paso para el Despliegue
@@ -421,6 +461,9 @@ StockWise ya está preconfigurado de fábrica para Streamlit Cloud:
 
 #### 3. Despliegue Continuo (CI/CD) y Mantenimiento
 - **Actualización Automática:** Cada vez que realices un `git push` a la rama configurada (`main`), Streamlit Cloud detectará los cambios y actualizará la aplicación automáticamente sin requerir intervención manual.
+- **Workflows Automatizados de GitHub Actions (`.github/workflows/`):**
+  - **`sync_to_hf.yml`:** Sincroniza automáticamente la rama `main` hacia el Space de Hugging Face para mantener ambos despliegues alineados en producción.
+  - **`validate_education_resources.yml`:** Audita en cada push o pull request la integridad y validez de los recursos pedagógicos del catálogo educativo mediante el auditor automatizado.
 - **Reinicio:** En caso de necesitar purgar la memoria o reiniciar el servidor, puedes acceder a *Manage app -> Menú de 3 puntos (...) -> Reboot app*.
 
 [⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
@@ -649,7 +692,7 @@ Para integrar StockWise con tu herramienta favorita sin fricción, sigue estos t
 2. **Reemplaza las rutas relativas por rutas absolutas:**
    - Para evitar problemas cuando el cliente inicie el proceso desde otro directorio de trabajo, utiliza siempre rutas absolutas en `command`, `args` y `PYTHONPATH`.
 3. **Reinicia la sesión o recarga el cliente:**
-   - Una vez guardado el JSON, reinicia el cliente. Las 12 herramientas de StockWise aparecerán disponibles de forma instantánea para tu modelo de IA.
+   - Una vez guardado el JSON, reinicia el cliente. Las 17 herramientas de StockWise aparecerán disponibles de forma instantánea para tu modelo de IA.
 
 [⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
 
@@ -659,6 +702,9 @@ Para integrar StockWise con tu herramienta favorita sin fricción, sigue estos t
 
 <a id="6-calidad-de-código-pruebas-y-validación"></a>
 <a id="5-calidad-de-código-pruebas-y-validación"></a>
+
+### 6.1. Batería de Pruebas y Linters
+<a id="61-batería-de-pruebas-y-linters"></a>
 
 El repositorio cuenta con una batería completa de pruebas unitarias, de contrato y validación arquitectónica:
 
@@ -680,7 +726,77 @@ ruff format --check .
 mypy
 ```
 
-### Inspección Rápida de Herramientas
+---
+
+### 6.2. Auditoría y Sincronización de Dependencias (Skill: `validate-dependencies`)
+<a id="62-auditoría-y-sincronización-de-dependencias-skill-validate-dependencies"></a>
+
+Para prevenir fallos en despliegues automatizados (como `ModuleNotFoundError` en **Streamlit Community Cloud** provocado por desincronización entre `pyproject.toml`, `requirements.txt` y `uv.lock`), el proyecto incluye la skill especializada **`validate-dependencies`** en [`.agents/skills/validate-dependencies/`](./.agents/skills/validate-dependencies/).
+
+#### ¿Qué audita la skill?
+1. **Consistencia de Manifiestos:** Valida que todas las librerías principales de `pyproject.toml` (`[project.dependencies]`) existan en `requirements.txt`.
+2. **Integridad del Lockfile:** Comprueba que todos los paquetes estén resueltos en `uv.lock` y ejecuta `uv lock --check` para alertar si el lockfile quedó desfasado respecto a `pyproject.toml`.
+3. **Auditoría AST de Código Fuente:** Escanea las importaciones en `src/`, `app.py` y `server.py` comprobando que cualquier biblioteca externa utilizada esté formalmente declarada.
+
+#### Instrucciones de Uso:
+
+**1. Verificación manual desde terminal:**
+```bash
+python .agents/skills/validate-dependencies/scripts/validate_deps.py
+```
+*(O utilizando el entorno virtual con `uv`: `uv run python .agents/skills/validate-dependencies/scripts/validate_deps.py`)*
+
+**2. Sincronización y corrección automática (`--fix`):**
+Si agregaste o editaste paquetes en `pyproject.toml`, este comando sincroniza `requirements.txt` y regenera `uv.lock` de forma automática:
+```bash
+python .agents/skills/validate-dependencies/scripts/validate_deps.py --fix
+```
+
+**3. Opciones adicionales:**
+```bash
+# Omitir el escaneo de imports en código fuente (solo validar archivos de dependencias)
+python .agents/skills/validate-dependencies/scripts/validate_deps.py --no-imports
+```
+
+**4. Uso mediante Asistente de IA (Antigravity):**
+Puedes pedirle directamente al asistente en lenguaje natural:
+> *"Valida las dependencias del proyecto"* o *"Sincroniza los archivos de paquetes"*
+
+El asistente cargará automáticamente la skill `validate-dependencies` y resolverá cualquier inconsistencia antes de hacer commit.
+
+---
+
+### 6.3. Auditoría y Mantenimiento de Documentación (Skill: `maintain-readme`)
+<a id="63-auditoría-y-mantenimiento-de-documentación-skill-maintain-readme"></a>
+
+Para evitar que la documentación quede rezagada frente al código a medida que se incorporan nuevas herramientas o módulos, el proyecto cuenta con la skill especializada **`maintain-readme`** en [`.agents/skills/maintain-readme/`](./.agents/skills/maintain-readme/).
+
+#### ¿Qué audita la skill?
+1. **Catálogo de Herramientas MCP:** Inspecciona vía AST `server.py` comprobando que las 17 herramientas registradas con `@mcp.tool()` estén documentadas y que los conteos numéricos no estén desactualizados.
+2. **Pestañas de la Aplicación Web:** Verifica que las 9 pestañas de Streamlit en `app.py` se encuentren reflejadas en el README.
+3. **Estructura del Repositorio:** Garantiza que los directorios principales (`.github/workflows`, `.agents/skills`, `uv.lock`, subpaquetes de `src/`) figuren en el árbol del proyecto.
+4. **Workflows de GitHub Actions:** Comprueba la documentación de los flujos de CI/CD activos (`sync_to_hf.yml`, `validate_education_resources.yml`).
+5. **Módulos Cuantitativos:** Valida la cobertura de opciones, portafolios, memorandos en PDF y academia educativa.
+
+#### Instrucciones de Uso:
+
+**1. Verificación manual desde terminal:**
+```bash
+python .agents/skills/maintain-readme/scripts/audit_readme.py
+```
+*(O utilizando el entorno virtual con `uv`: `uv run python .agents/skills/maintain-readme/scripts/audit_readme.py`)*
+
+**2. Uso mediante Asistente de IA (Antigravity):**
+Puedes pedirle directamente al asistente en lenguaje natural:
+> *"Audita el README"* o *"Verifica que la documentación esté al día con el código"*
+
+El asistente ejecutará la skill `maintain-readme`, detectará cualquier discrepancia e integrará los cambios necesarios.
+
+---
+
+### 6.4. Inspección Rápida de Herramientas MCP
+<a id="64-inspección-rápida-de-herramientas-mcp"></a>
+
 Puedes verificar el funcionamiento de cualquier herramienta directamente desde la terminal con `fastmcp`:
 
 ```bash
@@ -702,21 +818,35 @@ fastmcp dev inspector server.py
 
 ```text
 mcp_stock/
-├── app.py                     # Punto de entrada para la aplicación web Streamlit
-├── server.py                  # Shim ejecutable del servidor MCP FastMCP
-├── pyproject.toml             # Metadatos del proyecto, scripts, dependencias y reglas de linting
-├── requirements.txt           # Lista de dependencias en formato pip estándar
-├── charts/                    # Directorio de salida de gráficos interactivos HTML (Plotly)
-├── docs/                      # Guías extendidas de uso y documentación de apoyo
+├── .agents/                               # Customizaciones para asistentes de IA (skills, reglas, MCP)
+│   └── skills/
+│       ├── validate-dependencies/         # Skill para auditar y sincronizar pyproject, uv.lock y requirements
+│       └── maintain-readme/               # Skill para auditar y sincronizar el README con el código fuente
+├── .github/
+│   └── workflows/                         # Automatizaciones de CI/CD (GitHub Actions)
+│       ├── sync_to_hf.yml                 # Sincronización continua hacia Hugging Face Spaces
+│       └── validate_education_resources.yml # Validación de integridad de catálogo educativo
+├── app.py                                 # Punto de entrada para la aplicación web Streamlit
+├── server.py                              # Shim ejecutable del servidor MCP FastMCP
+├── pyproject.toml                         # Metadatos del proyecto, dependencias y reglas de linting
+├── requirements.txt                       # Lista de dependencias en formato pip estándar
+├── uv.lock                                # Lockfile determinista utilizado por uv y Streamlit Cloud
+├── charts/                                # Directorio de salida de gráficos interactivos HTML (Plotly)
+├── docs/                                  # Guías extendidas de uso y documentación de apoyo
 ├── src/
 │   └── stockwise/
-│       ├── analytics/         # Módulos cuantitativos: indicadores, riesgo, forecasting, eventos
-│       ├── data/              # Conectores a Yahoo Finance y API de Datos Abiertos
-│       ├── domain/            # Catálogos de acciones BVC, modelos y resolución de tickers
-│       ├── interfaces/        # Servidor MCP, CLI y vistas de la aplicación web
-│       ├── services/          # Orquestación de lógica de negocio y análisis combinado
-│       └── viz/               # Constructores de gráficos Plotly (velas, series, comparativas)
-└── tests/                     # Suite de pruebas unitarias, de integración y de arquitectura
+│       ├── analytics/                     # Módulos cuantitativos: indicadores, riesgo, GARCH, forecasting, opciones, portafolios
+│       ├── data/                          # Conectores de datos (Yahoo Finance, Datos Abiertos) y catálogo educativo
+│       ├── domain/                        # Entidades, modelos, reglas de negocio y catálogos bursátiles
+│       │   └── catalogs/                  # Catálogo de emisores y acciones de la BVC
+│       ├── interfaces/                    # Puntos de contacto: servidor MCP, aplicación web Streamlit, CLI y API
+│       │   ├── api/                       # Endpoints y rutas FastAPI opcionales
+│       │   ├── mcp/                       # Servidor FastMCP y registro de herramientas
+│       │   └── web/                       # Vistas y componentes de la aplicación Streamlit
+│       ├── services/                      # Orquestación de lógica: opciones, portafolios, educación y eventos
+│       │   └── reports/                   # Generación de Memorandos Ejecutivos de Inversión en PDF
+│       └── viz/                           # Constructores de gráficos Plotly (velas, series, opciones, riesgo, frontera eficiente)
+└── tests/                                 # Suite de pruebas unitarias, de integración, de contrato y arquitectura
 ```
 
 [⬆ Volver a la Tabla de Contenido](#tabla-de-contenido)
