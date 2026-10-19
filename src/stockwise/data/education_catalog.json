@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated_at": "2026-10-12",
+  "updated_at": "2026-10-19",
   "resources": [
     {
       "id": "khan-academy-stocks",
@@ -18,7 +18,7 @@
         "Aprender sin jerga intimidante a través de analogías sencillas"
       ],
       "status": "active",
-      "last_checked": "2026-10-12"
+      "last_checked": "2026-10-19"
     },
     {
       "id": "aula-bvc-inversionistas",
@@ -36,7 +36,7 @@
         "Conocer los derechos de los accionistas minoritarios y asambleas corporativas"
       ],
       "status": "active",
-      "last_checked": "2026-10-12"
+      "last_checked": "2026-10-19"
     },
     {
       "id": "investopedia-fundamentals",
@@ -54,7 +54,7 @@
         "Ejemplos prácticos de cálculo de múltiplos comparables"
       ],
       "status": "active",
-      "last_checked": "2026-10-12"
+      "last_checked": "2026-10-19"
     },
     {
       "id": "book-psychology-of-money",
@@ -72,7 +72,7 @@
         "Cómo definir qué es 'suficiente' para evitar apalancamiento destructivo"
       ],
       "status": "active",
-      "last_checked": "2026-10-12"
+      "last_checked": "2026-10-19"
     },
     {
       "id": "book-random-walk",
@@ -90,7 +90,7 @@
         "Historia pedagógica de las burbujas financieras y cómo protegerse de ellas"
       ],
       "status": "active",
-      "last_checked": "2026-10-12"
+      "last_checked": "2026-10-19"
     },
     {
       "id": "damodaran-online",
@@ -108,7 +108,7 @@
         "Estimación de costo de capital, beta y primas de riesgo por país"
       ],
       "status": "active",
-      "last_checked": "2026-10-12"
+      "last_checked": "2026-10-19"
     },
     {
       "id": "investor-gov-sec",
@@ -126,7 +126,7 @@
         "Entender los documentos oficiales 10-K (anual) y 10-Q (trimestral) que presentan las empresas"
       ],
       "status": "active",
-      "last_checked": "2026-10-12"
+      "last_checked": "2026-10-19"
     },
     {
       "id": "banrep-educa",
@@ -144,7 +144,7 @@
         "El rol del Banco de la República como estabilizador macroeconómico"
       ],
       "status": "active",
-      "last_checked": "2026-10-12"
+      "last_checked": "2026-10-19"
     },
     {
       "id": "fidelity-technical-analysis",
@@ -162,7 +162,7 @@
         "Cómo evitar señales falsas en osciladores combinando múltiples horizontes de tiempo"
       ],
       "status": "active",
-      "last_checked": "2026-10-12"
+      "last_checked": "2026-10-19"
     }
   ],
   "chart_guides": {
